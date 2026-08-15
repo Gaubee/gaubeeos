@@ -51,7 +51,7 @@ import { accountService } from "$lib/apps/builtin/account/service";
 // 避免经过 gaubeeos/bus 产生循环依赖（bus → appManager → registry → github → bus）。
 import { vfs, vfsStore } from "$lib/vfs/vfs.svelte";
 
-import { activityLog, DEFAULT_REPO } from "./activity-log.svelte";
+import { activityLog, defaultRepoRef } from "./activity-log.svelte";
 
 /**
  * GitService 单例实现：委托 VFS（Git Data API 路径，认证有效）。
@@ -83,7 +83,7 @@ class GitServiceImpl implements GitService {
     void activityLog.log({
       action: "commit",
       actor: callerId,
-      repo: DEFAULT_REPO,
+      repo: defaultRepoRef(),
       details: {
         message,
         sha,
@@ -98,7 +98,7 @@ class GitServiceImpl implements GitService {
     void activityLog.log({
       action: "revert",
       actor: callerId,
-      repo: DEFAULT_REPO,
+      repo: defaultRepoRef(),
       details: { files: [path] },
     });
   }
@@ -108,7 +108,7 @@ class GitServiceImpl implements GitService {
     void activityLog.log({
       action: "sync",
       actor: callerId,
-      repo: DEFAULT_REPO,
+      repo: defaultRepoRef(),
       details: subtree ? { message: `sync ${subtree}` } : {},
     });
   }

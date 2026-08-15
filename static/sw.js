@@ -43,10 +43,7 @@ self.addEventListener("fetch", (event) => {
 
   if (url.origin !== self.location.origin) return;
 
-  if (
-    request.method === "GET" &&
-    (request.headers.get("accept") || "").includes("text/html")
-  ) {
+  if (request.method === "GET" && (request.headers.get("accept") || "").includes("text/html")) {
     event.respondWith(spaNavigationWithTheme(request));
   }
 });

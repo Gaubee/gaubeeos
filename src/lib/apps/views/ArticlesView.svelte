@@ -75,7 +75,7 @@
   }
 
   function navigateToArticle(post: ContentEntry) {
-    navController.navigateMain(`/article/${post.collection}/${post.id.stem}`)
+    navController.navigateMain(contentQuery.contentUrl(post))
   }
 
   function scrollToYear(year: number) {
@@ -166,7 +166,7 @@
                   >
                     <a
                       class="group block p-5 sm:p-6"
-                      href={`/article/${post.collection}/${post.id.stem}`}
+                      href={contentQuery.contentUrl(post)}
                       onclick={(event) => {
                         event.preventDefault()
                         navigateToArticle(post)

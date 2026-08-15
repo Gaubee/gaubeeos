@@ -5,6 +5,7 @@
 	3. 从内容管道（contentQuery）阅读文章，并保持前后文章导航。
 -->
 <script lang="ts">
+  import { contentSourceStore } from '$lib/content-source/store.svelte'
   import { contentQuery } from '$lib/content-pipeline/query.svelte'
   import type { ContentEntry } from '$lib/content-pipeline/types'
   import { navController } from '$lib/nav/nav-controller-instance'
@@ -33,7 +34,8 @@
   function handleEdit(): void {
     if (!target) return
     const path = `src/content/${target.collection}/${target.stem}.md`
-    navController.navigateMain(`/app/github-editor/repo/gaubee/gaubee.com?file=${encodeURIComponent(path)}`)
+    const href = contentSourceStore.editorHrefFor(path)
+    if (href) navController.navigateMain(href)
   }
 
   interface Props {}
@@ -91,7 +93,7 @@
   }
 
   function gotoPost(p: ContentEntry) {
-    navController.navigateMain(`/article/${p.collection}/${p.id.stem}`)
+    navController.navigateMain(contentQuery.contentUrl(p))
   }
 
   function backToList() {

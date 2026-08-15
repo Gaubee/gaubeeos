@@ -11,6 +11,7 @@
  * 由 gitService 直接 import 调用，避免经过 gaubeeos/bus 产生循环依赖。
  */
 import { browser } from "$app/environment";
+import { contentSourceStore } from "$lib/content-source/store.svelte";
 import { activityAll, activityPut, type GitActivity } from "$lib/vfs/meta-store";
 
 export type { GitActivity };
@@ -110,5 +111,12 @@ class ActivityLog {
 /** 活动日志单例。 */
 export const activityLog = new ActivityLog();
 
-/** 默认 repo 标识（与 github/client 的 OWNER/REPO 对齐）。 */
-export const DEFAULT_REPO = "gaubee/gaubee.com";
+/**
+ * 默认 repo 标识（owner/repo 字符串）。
+ * 内核订阅模式：由第一个启用的订阅源派生；无源时回退 gaubee/gaubee.com
+ * （GitHubApp 只读浏览兜底，写路径会因无内容而为空）。
+ */
+export function defaultRepoRef(): string {
+  const repo = contentSourceStore.primaryRepo;
+  return repo ? `${repo.owner}/${repo.repo}` : "gaubee/gaubee.com";
+}

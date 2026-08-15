@@ -18,7 +18,7 @@
     return p.title
   }
   function open(p: ContentEntry) {
-    navController.navigateMain(`/article/articles/${p.id.stem}`)
+    navController.navigateMain(contentQuery.contentUrl(p))
   }
 </script>
 

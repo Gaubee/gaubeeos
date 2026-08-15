@@ -1,19 +1,13 @@
 import type { ContentSource } from "../types";
 /**
- * events 内容源：读 src/content/events/*.md，解析为 ContentEntry[]。
+ * events 内容源（远程订阅模式）：由设置「内容源」配置的 GitHub 仓库聚合而来。
  *
- * 替代 readonlyVfs.getPostsByCollection('events') 的读取职责。
+ * 历史单体模式（gaubee.com）：构建期把 src/content/events 打进 bundle，
+ * 见 readonlyVfs 路径（内核版已置空）。
  */
-import { readCollection } from "./_collection";
+import { remoteCollectionSource } from "./remote";
 
 export const COLLECTION = "events";
-export const PATH_PREFIX = "src/content/events/";
 
 /** events 内容源单例。 */
-export const eventsSource: ContentSource = {
-  collection: COLLECTION,
-  pathPrefix: PATH_PREFIX,
-  read(vfs) {
-    return readCollection(vfs, { collection: COLLECTION, pathPrefix: PATH_PREFIX });
-  },
-};
+export const eventsSource: ContentSource = remoteCollectionSource(COLLECTION);

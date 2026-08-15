@@ -27,7 +27,7 @@
     return text.slice(0, 40) || '(无内容)'
   }
   function open(p: ContentEntry) {
-    navController.navigateMain(`/article/events/${p.id.stem}`)
+    navController.navigateMain(contentQuery.contentUrl(p))
   }
 </script>
 

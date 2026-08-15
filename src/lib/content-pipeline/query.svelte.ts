@@ -3,17 +3,16 @@
  *
  * 替代 readonlyVfs.getPosts + contentStore 派生视图，作为所有消费方的唯一入口。
  *
- * 数据源策略：
- * - init()：用 readonlyVfs 作为 reader（构建时静态数据，同步、零延迟、SSR 后立即可用）。
- * - refresh()：用 vfsStore 作为 reader（编辑器写入后，反映可写态）。
+ * 数据源策略（内核订阅模式，2026-08-16）：
+ * - init()：异步 —— 先装载订阅数据（/api/content/*，见 content-source store），
+ *   再跑管道（远程 source 忽略 reader，直接读 store）。幂等 + 单飞。
+ * - refresh()：手动重跑管道（订阅 CRUD/同步后由 store 联动调用方触发）。
  *
- * SSR 安全：管道只在 browser 执行（init/refresh 内部判 browser）。
+ * SSR 安全：管道只在 browser 执行。
  * 响应式：通过 version 计数器暴露，消费方可用 contentQuery.version 触发 $derived 重算。
  */
 import { browser } from "$app/environment";
-import type { Collection } from "$lib/data/frontmatter";
-import { readonlyVfs } from "$lib/vfs/readonly";
-import { vfsStore } from "$lib/vfs/vfs.svelte";
+import { contentSourceStore } from "$lib/content-source/store.svelte";
 
 import { pipelineExecutor } from "./executor";
 import type { ContentEntry, VfsReader } from "./types";
@@ -26,32 +25,11 @@ export interface TagCount {
 
 // ---- reader 适配器 ----
 
-/** readonlyVfs 适配为 VfsReader（同步内存读取）。 */
-const readonlyReader: VfsReader = {
-  readFile(path: string): string | null {
-    return readonlyVfs.readFile(path);
-  },
-  readdir(prefix: string): string[] {
-    return readonlyVfs.readdir(prefix).map((n) => n.path);
-  },
+/** 占位 reader：远程模式下 ContentSource.read 忽略 reader（见 sources/remote.ts）。 */
+const nullReader: VfsReader = {
+  readFile: () => null,
+  readdir: () => [],
 };
-
-/** vfsStore 适配为 VfsReader（读当前内存快照，不触发异步同步）。 */
-function makeVfsStoreReader(): VfsReader {
-  return {
-    readFile(path: string): string | null {
-      const node = vfsStore.files.find((f) => f.path === path);
-      return node?.content ?? null;
-    },
-    readdir(prefix: string): string[] {
-      const p = prefix.replace(/\/+$/, "");
-      const withSlash = p ? `${p}/` : "";
-      return vfsStore.files
-        .filter((f) => (p ? f.path.startsWith(withSlash) : true))
-        .map((f) => f.path);
-    },
-  };
-}
 
 /** 按 date 降序排序的复用工具。 */
 function byDateDesc(a: ContentEntry, b: ContentEntry): number {
@@ -65,21 +43,53 @@ class ContentQuery {
   /** 是否已初始化（至少跑过一次管道）。 */
   initialized = $state(false);
 
-  /** 初始化管道（用 readonlyVfs 作为 reader）。幂等。 */
-  init(): void {
-    if (!browser) return;
-    // 幂等：未初始化或 reader 缺失时跑一次；重复调用刷新只读快照
-    pipelineExecutor.run(readonlyReader);
-    this.version++;
-    this.initialized = true;
+  /** 订阅数据装载中（视图可用它显示骨架屏）。 */
+  loading = $state(false);
+
+  /** 装载错误（后端不可达等，视图显示错误条）。 */
+  error = $state<string | null>(null);
+
+  #initPromise: Promise<void> | null = null;
+
+  /** 初始化管道（异步：装载订阅数据 → 跑管道）。幂等 + 单飞。 */
+  init(): Promise<void> {
+    if (!browser) return Promise.resolve();
+    if (!this.#initPromise) {
+      this.loading = true;
+      this.error = null;
+      this.#initPromise = (async () => {
+        await contentSourceStore.ensureLoaded();
+        pipelineExecutor.run(nullReader);
+        this.version++;
+        this.initialized = true;
+        this.error = contentSourceStore.error;
+      })()
+        .catch((e) => {
+          this.error = e instanceof Error ? e.message : String(e);
+        })
+        .finally(() => {
+          this.loading = false;
+          this.#initPromise = null;
+        });
+    }
+    return this.#initPromise;
   }
 
-  /** 重新执行管道（编辑器写入后调用）。用 vfsStore 反映可写态。 */
+  /** 重新执行管道（订阅 CRUD/同步后调用；数据已在 store 刷新）。 */
   refresh(): void {
     if (!browser) return;
-    pipelineExecutor.run(makeVfsStoreReader());
+    pipelineExecutor.run(nullReader);
     this.version++;
     this.initialized = true;
+    this.error = contentSourceStore.error;
+  }
+
+  /** 订阅数据变化后的完整刷新（store.refresh 完成后调用）。 */
+  async refreshFromRemote(): Promise<void> {
+    if (!browser) return;
+    await contentSourceStore.ensureLoaded();
+    await contentSourceStore.refresh();
+    this.refresh();
   }
 
   // ---- 查询 API ----
@@ -127,20 +137,38 @@ class ContentQuery {
     return new Map([...groups.entries()].sort((a, b) => b[0] - a[0]));
   }
 
-  /** 根据 collection + stem 查找单篇。 */
+  /**
+   * 根据 collection + URL slug 查找单篇。
+   * 匹配 stem 本身或 slug_prefix 前缀形式（多源防冲突，见 contentUrl）。
+   */
   findPost(collection: string, stem: string): ContentEntry | null {
     const entries = pipelineExecutor.getEntries(collection);
-    return entries.find((e) => e.id.stem === stem) ?? null;
+    return (
+      entries.find((e) => this.urlSlugOf(e) === stem) ??
+      entries.find((e) => e.id.stem === stem) ??
+      null
+    );
   }
 
   /** 同集合的所有内容（按 date 降序，供上下篇导航）。 */
-  siblings(collection: string | Collection): ContentEntry[] {
+  siblings(collection: string): ContentEntry[] {
     return pipelineExecutor.getEntries(collection).slice().sort(byDateDesc);
   }
 
   /** 统一 excerpt 查询（供消费方按需取摘要）。 */
   excerptFor(entry: ContentEntry): string {
     return entry.excerpt;
+  }
+
+  /** entry 的 URL slug（应用其源配置的 slug_prefix）。 */
+  urlSlugOf(entry: ContentEntry): string {
+    const me = contentSourceStore.manifest?.entries.find((e) => e.uid === entry.uid);
+    return me ? `${me.slug_prefix ?? ""}${entry.id.stem}` : entry.id.stem;
+  }
+
+  /** entry 详情页 URL。 */
+  contentUrl(entry: ContentEntry): string {
+    return `/article/${entry.collection}/${this.urlSlugOf(entry)}`;
   }
 
   // ---- 内部工具 ----

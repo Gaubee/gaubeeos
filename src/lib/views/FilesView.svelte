@@ -6,6 +6,7 @@
 	- 打开最近文章：直接跳到序号最大的文章编辑器
 -->
 <script lang="ts">
+  import { contentSourceStore } from '$lib/content-source/store.svelte'
   import { onMount } from 'svelte'
   import { vfsStore } from '$lib/vfs/vfs.svelte'
   import { navController } from '$lib/nav/nav-controller-instance'
@@ -41,10 +42,9 @@
   }
 
   function openFile(path: string) {
-    // 跳 GithubEditorApp 编辑（主仓库 gaubee/gaubee.com）
-    navController.navigateMain(
-      `/app/github-editor/repo/gaubee/gaubee.com?file=${encodeURIComponent(path)}`,
-    )
+    // 跳 GithubEditorApp 编辑（主仓库 = 第一个启用的订阅源）
+    const href = contentSourceStore.editorHrefFor(path)
+    if (href) navController.navigateMain(href)
   }
 
   /**
@@ -73,9 +73,8 @@
     await vfsStore.write(path, content)
     const label = collection === 'articles' ? '文章' : collection === 'events' ? '短评' : '草稿'
     notifySuccess(`已新建${label} ${stem}`)
-    navController.navigateMain(
-      `/app/github-editor/repo/gaubee/gaubee.com?file=${encodeURIComponent(path)}`,
-    )
+    const href = contentSourceStore.editorHrefFor(path)
+    if (href) navController.navigateMain(href)
   }
 
   /**
@@ -96,9 +95,8 @@
       }
     }
     if (latestStem) {
-      navController.navigateMain(
-        `/app/github-editor/repo/gaubee/gaubee.com?file=${encodeURIComponent(`src/content/articles/${latestStem}.md`)}`,
-      )
+      const href = contentSourceStore.editorHrefFor(`src/content/articles/${latestStem}.md`)
+      if (href) navController.navigateMain(href)
     } else {
       // 无文章时新建一篇
       createNew('articles')

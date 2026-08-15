@@ -2,7 +2,7 @@ import { searchIndexProcessor } from "$lib/content-pipeline/processors/search-in
 import { tagsProcessor } from "$lib/content-pipeline/processors/tags";
 import { eventsSource } from "$lib/content-pipeline/sources/events";
 import { leafRoute } from "$lib/router";
-import { createFileSearchService } from "$lib/search/file-service";
+import { createRuntimeSearchService } from "$lib/search/runtime-service";
 /**
  * 说说应用（系统内置，不可卸载）。
  *
@@ -36,7 +36,8 @@ export const shoutApp: AppEntry = {
       },
     ],
     vfsOwnership: ["src/content/events/"],
-    searchService: () => createFileSearchService({ appId: "shout", appName: "说说" }),
+    searchService: () =>
+      createRuntimeSearchService({ appId: "shout", collection: "events", appName: "说说" }),
     // ★ 声明式内容管道：events 源；处理器与 articles 共享（注册表按 id 去重）
     contentPipeline: {
       source: eventsSource,

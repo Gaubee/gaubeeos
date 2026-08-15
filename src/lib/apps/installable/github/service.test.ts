@@ -36,7 +36,7 @@ const mockActivityLog = {
 };
 vi.mock("./activity-log.svelte", () => ({
   activityLog: mockActivityLog,
-  DEFAULT_REPO: "gaubee/gaubee.com",
+  defaultRepoRef: () => "gaubee/gaubee.com",
 }));
 
 const { gitService } = await import("./service");

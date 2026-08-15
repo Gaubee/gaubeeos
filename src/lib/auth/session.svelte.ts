@@ -23,6 +23,12 @@ import { browser } from "$app/environment";
 export const AUTH_BASE =
   (import.meta.env.VITE_AUTH_BASE as string | undefined) ?? "http://localhost:8787";
 
+/**
+ * OAuth Worker 是否已配置（构建期 VITE_AUTH_BASE 注入）。
+ * GaubeeOS 内核部署可不带 worker（纯只读订阅模式）：未配置时登录入口应隐藏。
+ */
+export const isAuthConfigured = Boolean(import.meta.env.VITE_AUTH_BASE);
+
 /** GitHub API 基础 URL（前端直连）。 */
 const GITHUB_API = "https://api.github.com";
 

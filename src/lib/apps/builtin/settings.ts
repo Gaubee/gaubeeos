@@ -3,12 +3,13 @@ import { leafRoute } from "$lib/router";
 import Info from "@lucide/svelte/icons/info";
 import MoonIcon from "@lucide/svelte/icons/moon";
 import PaletteIcon from "@lucide/svelte/icons/palette";
+import Rss from "@lucide/svelte/icons/rss";
 /**
  * 设置应用（系统内置，不可卸载）。
  *
  * 功能：系统设置、应用管理（安装/卸载应用）。
  * 设置面板入口通过 manifest.settingsSections 声明式注册（AppManager 投影）：
- * 本应用自身注册「关于」面板；其它应用（如账户）各自声明自己的面板。
+ * 本应用自身注册「内容源/外观/关于」面板；其它应用（如账户）各自声明自己的面板。
  */
 import Settings from "@lucide/svelte/icons/settings";
 import { toggleMode } from "mode-watcher";
@@ -16,6 +17,7 @@ import type { Component } from "svelte";
 
 import type { AppEntry } from "../types";
 import AppearanceSection from "./appearance/AppearanceSection.svelte";
+import ContentSourceSection from "./content-source/ContentSourceSection.svelte";
 
 export const settingsApp: AppEntry = {
   manifest: {
@@ -33,6 +35,15 @@ export const settingsApp: AppEntry = {
     ],
     vfsOwnership: [],
     settingsSections: [
+      // 内容源订阅：OS 内核的核心配置（文章/说说来自哪些 GitHub 仓库）
+      {
+        id: "content-source",
+        title: "内容源",
+        description: "订阅 GitHub 仓库作为文章/说说来源",
+        icon: Rss,
+        order: 0,
+        render: ContentSourceSection,
+      },
       // 外观是 OS 级偏好，归属设置应用（无独立 activity）
       {
         id: "appearance",

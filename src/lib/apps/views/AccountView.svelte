@@ -10,6 +10,7 @@
 	也不依赖 SettingsApp。作为 /app/account 深链接视图呈现。
 -->
 <script lang="ts">
+  import { isAuthConfigured } from '$lib/auth/session.svelte'
   import { gaubeeos } from '$lib/os/services'
   import { ACCOUNT_UNAVAILABLE } from '$lib/apps/builtin/account/service'
   import { Button } from '$lib/components/ui/button'
@@ -63,7 +64,7 @@
   <Card.Root>
     <Card.Header>
       <Card.Title>账户</Card.Title>
-      <Card.Description>使用 GitHub 账户登录以编辑内容、提交变更。</Card.Description>
+      <Card.Description>使用 GitHub 账户登录以编辑内容、提交变更。{#if !isAuthConfigured}<span class="text-muted-foreground block pt-1 text-xs">（此部署未配置 OAuth，登录不可用；浏览与订阅不受影响）</span>{/if}</Card.Description>
     </Card.Header>
     <Card.Content>
       {#if !accountState.loaded}
@@ -101,7 +102,7 @@
           {#if accountState.error}
             <p class="text-destructive text-sm">{accountState.error}</p>
           {/if}
-          <Button onclick={handleLogin}>
+          <Button onclick={handleLogin} disabled={!isAuthConfigured} title={isAuthConfigured ? undefined : '此部署未配置 OAuth Worker（VITE_AUTH_BASE）'}>
             <LogInIcon data-icon="inline-start" />
             用 GitHub 登录
           </Button>

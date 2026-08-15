@@ -5,6 +5,7 @@
 	3. 对长内容提供局部展开，且不截断 Markdown 的语义结构。
 -->
 <script lang="ts">
+  import { contentSourceStore } from '$lib/content-source/store.svelte'
   import { contentQuery } from '$lib/content-pipeline/query.svelte'
   import type { ContentEntry } from '$lib/content-pipeline/types'
   import { navController } from '$lib/nav/nav-controller-instance'
@@ -29,7 +30,8 @@
   /** 新建说说确认：跳 GithubEditorApp 编辑新文件。 */
   function handleCreated(path: string): void {
     newDialogOpen = false
-    navController.navigateMain(`/app/github-editor/repo/gaubee/gaubee.com?file=${encodeURIComponent(path)}`)
+    const href = contentSourceStore.editorHrefFor(path)
+    if (href) navController.navigateMain(href)
   }
 
   const LONG_SHOUT_CHARACTERS = 560
@@ -53,7 +55,7 @@
   }
 
   function hrefFor(shout: ContentEntry): string {
-    return `/article/${shout.collection}/${shout.id.stem}`
+    return contentQuery.contentUrl(shout)
   }
 
   function openShout(event: MouseEvent, shout: ContentEntry): void {
