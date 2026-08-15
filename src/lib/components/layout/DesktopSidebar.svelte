@@ -1,0 +1,101 @@
+<!--
+	DesktopSidebar：桌面端任务栏（左栏）。
+
+	正交意图：
+	1. 原始需求（2026-07-23 任务栏模型）：任务栏=打开+固定的应用，默认空。
+	2. 顶部固定"桌面入口"（左栏时桌面在顶部）：点击回桌面（location→/）。
+	3. main/bottom 区 AreaNav：渲染打开的应用（navState.mainTabs/bottomTabs）。
+	4. pop 入口（搜索/通知）：后台服务快捷入口。
+-->
+<script lang="ts">
+  import { navController } from '$lib/nav/nav-controller-instance'
+  import { navStore } from '$lib/nav/nav.svelte'
+  import AreaNav from './AreaNav.svelte'
+  import PanelLeftIcon from '@lucide/svelte/icons/panel-left'
+  import LayoutGridIcon from '@lucide/svelte/icons/layout-grid'
+
+  const COLLAPSED_KEY = 'gaubee:sidebar-collapsed'
+
+  let collapsed = $state(false)
+
+  if (typeof window !== 'undefined') {
+    // 移动端（窄视口）默认折叠节省空间；桌面端默认展开。
+    // 用户手动折叠/展开后优先 localStorage 记忆。
+    const stored = localStorage.getItem(COLLAPSED_KEY)
+    if (stored !== null) {
+      collapsed = stored === 'true'
+    } else {
+      collapsed = window.innerWidth < 768
+    }
+  }
+
+  function toggleCollapsed() {
+    collapsed = !collapsed
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(COLLAPSED_KEY, String(collapsed))
+    }
+  }
+
+  // 回桌面：location 设为 /，桌面背景层显现
+  function goDesktop() {
+    navController.navigateMain('/')
+  }
+
+  const navState = $derived(navStore.current)
+  // 是否在桌面（决定桌面入口高亮）
+  const onDesktop = $derived(navState.mainLocation.pathname === '/')
+</script>
+
+<aside class="desktop-sidebar glass-surface p-2" data-collapsed={collapsed}>
+  <!-- 顶部桌面入口 + 折叠按钮（左栏时桌面在顶部） -->
+  <div class="mb-3 flex items-center {collapsed ? 'justify-center' : 'justify-between'}">
+    {#if collapsed}
+      <button
+        class="hover:bg-accent flex size-9 items-center justify-center rounded-md {onDesktop ? 'bg-accent text-accent-foreground' : ''}"
+        onclick={goDesktop}
+        aria-label="桌面"
+        title="桌面"
+      >
+        <LayoutGridIcon class="size-5" />
+      </button>
+    {:else}
+      <button
+        class="hover:bg-accent flex items-center gap-2 rounded-md px-2 py-1 text-sm font-semibold {onDesktop ? 'bg-accent text-accent-foreground' : ''}"
+        onclick={goDesktop}
+      >
+        <LayoutGridIcon class="size-4" />
+        <span>桌面</span>
+      </button>
+      <button
+        class="text-muted-foreground hover:bg-accent hover:text-foreground flex size-7 items-center justify-center rounded-md"
+        onclick={toggleCollapsed}
+        aria-label="折叠侧栏"
+      >
+        <PanelLeftIcon class="size-4" />
+      </button>
+    {/if}
+  </div>
+
+  <!-- main 区任务栏：打开 + 固定的应用（默认空）。
+       flex-1 撑满剩余高度，让拖拽落区覆盖整个 main 区（拖入更宽松）。 -->
+  <div class="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
+    {#if !collapsed && navState.mainTabs.length === 0}
+      <div class="text-muted-foreground px-2 py-4 text-center text-xs">
+        打开应用后会出现在这里
+      </div>
+    {/if}
+    <AreaNav area="main" {collapsed} class="flex-1" />
+  </div>
+
+  <!-- bottom 区任务栏 -->
+  <div class="mt-2 border-t pt-2">
+    {#if !collapsed && navState.bottomTabs.length === 0}
+      <div class="text-muted-foreground px-2 py-2 text-center text-xs">
+        底栏
+      </div>
+    {/if}
+    <AreaNav area="bottom" {collapsed} />
+  </div>
+
+  <!-- 注意：搜索/通知等 pop 入口已移至顶部状态栏 tray 区，Dock 底部不再显示 -->
+</aside>

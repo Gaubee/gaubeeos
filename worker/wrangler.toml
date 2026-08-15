@@ -1,0 +1,42 @@
+#:schema node_modules/wrangler/config-schema.json
+name = "gaubee-auth"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# 环境变量（非敏感，可提交）：
+# - APP_ORIGIN：静态站点的 origin，CORS 与重定向白名单用。部署时设置。
+# - ENVIRONMENT：dev 时允许 localhost CORS；生产设为 "production" 严格白名单。
+# 敏感变量（GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET）用 wrangler secret put 设置，不入库。
+[vars]
+# 本地开发：前端经 portless 暴露为 https://gaubee.com.localhost，Worker 经 vite proxy 同源转发。
+# APP_ORIGIN：OAuth 成功后重定向回前端的 origin（worker/src/index.ts 的回调 redirect 用）。
+# WORKER_ORIGIN：构造 OAuth redirect_uri 的 origin（反代下 c.req.url 不可靠，必须显式指定）。
+# 本地因 vite proxy，/auth/github/callback 经前端同源地址转发到 Worker，故 WORKER_ORIGIN = 前端 portless URL。
+APP_ORIGIN = "https://gaubee.com.localhost"
+WORKER_ORIGIN = "https://gaubee.com.localhost"
+ENVIRONMENT = "dev"
+
+# 生产环境配置（CI 用 wrangler deploy --env production 触发）：
+# APP_ORIGIN 必须与静态站（GitHub Pages）实际域名一致，用于 CORS 与 OAuth 回调重定向。
+# WORKER_ORIGIN 是生产 Worker 的对外域名（用于构造 OAuth redirect_uri）。
+# 部署前请确认下面三个值与你的实际域名匹配（WORKER_ORIGIN 用你选定的 Worker 域名，含 https 无尾斜杠）。
+[env.production.vars]
+APP_ORIGIN = "https://gaubee.com"
+WORKER_ORIGIN = "https://auth.gaubee.com"
+ENVIRONMENT = "production"
+
+# ===== 三方一致性检查清单（改动任一处，必须同步其余两处）=====
+# Worker 用 WORKER_ORIGIN 构造 GitHub OAuth 的 redirect_uri，故下面三处的「Worker 域名」必须相同：
+#   1. 本文件上方 WORKER_ORIGIN                          （Worker 自身认知）
+#   2. 前端构建注入的 VITE_AUTH_BASE（GitHub Secret）    （前端跳转目标）
+#   3. GitHub OAuth App 的 Authorization callback URL    （GitHub 回跳目标）
+# 当前 Worker 域名：https://auth.gaubee.com
+#   callback URL 须为：https://auth.gaubee.com/auth/github/callback
+#
+# 域名机制：auth.gaubee.com 经 Cloudflare Workers Custom Domain 绑定（zone 须在 Cloudflare，
+# Cloudflare 自动签边缘证书 + 建路由）。不可用裸 CNAME 指向 *.workers.dev——workers.dev 默认
+# 域的证书不覆盖 CNAME 进来的自定义主机名，会导致 ERR_SSL_VERSION_OR_CIPHER_MISMATCH。
+
+# 本地开发：wrangler dev 默认 http://localhost:8787
+# 生产：auth.gaubee.com（Workers Custom Domain）
