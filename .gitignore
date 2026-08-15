@@ -40,3 +40,6 @@ tests/jules-scratch/**/screenshots/
 
 # Rust 构建产物
 static-server/target
+
+# 订阅引擎本地数据（dev）
+static-server/.data
