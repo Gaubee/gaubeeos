@@ -1,18 +1,16 @@
 # 只排除与构建无关的上下文。
-# 注意：**不可排除任何 .md**——src/content/{articles,events} 的 markdown 是内容本体，
-# content:prepare 依赖它们生成只读 VFS 与搜索索引。
 node_modules
 build
 .svelte-kit
-static/search-index
-# Rust 构建产物（本机 cargo check 会产生数 GB target/，严禁进构建上下文）
+# Rust 构建产物与本机订阅测试数据（数 GB / 数百 KB，严禁进构建上下文）
 static-server/target
+static-server/.data
 .git
 .github
 .vscode
 .zcode
 tests
-# worker 是独立的 Cloudflare Worker 部署单元（CI 单独流程），静态站构建不依赖
+# worker 是独立的 Cloudflare Worker 部署单元（OAuth，可选自建），容器构建不依赖
 worker
 .env
 .env.*

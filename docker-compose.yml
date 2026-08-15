@@ -1,0 +1,35 @@
+# ---------------------------------------------------------------------------
+# GaubeeOS 服务器部署（有状态：内容订阅引擎）。
+#
+# 用法：
+#   1. 保存本文件到服务器任意目录（如 /opt/gaubeeos/）
+#   2. （可选）在同目录 .env 配置 GITHUB_TOKEN（提升订阅同步限额）
+#   3. docker compose pull && docker compose up -d
+#   4. 浏览器打开 http://<host>:8090 → 设置 → 内容源 → 添加 GitHub 仓库订阅
+#
+# 数据：./data 卷持久化订阅配置与内容缓存；升级/重建容器不丢数据。
+# 更新：docker compose pull && docker compose up -d
+# ---------------------------------------------------------------------------
+
+services:
+  gaubeeos:
+    image: docker.io/gaubee/gaubeeos:latest
+    # 备用通道：
+    #   image: ghcr.io/gaubee/gaubeeos:latest
+    container_name: gaubeeos
+    restart: unless-stopped
+    # 镜像默认非 root（65532）；bind mount 的 ./data 由 Docker 以 root 创建，
+    # 非 root 进程无写权限会致订阅配置落盘失败。自托管单二进制场景以 root 跑
+    # 简化权限；如需非 root：宿主执行 `sudo chown -R 65532:65532 data` 后删除本行。
+    user: "0:0"
+    ports:
+      - "${PORT:-8090}:8080"
+    volumes:
+      # 订阅配置 + 内容缓存 + 清单（有状态核心）
+      - ./data:/data
+    environment:
+      # 可选：GitHub token（匿名 60 次/小时；配 token 5000 次/小时）
+      # 也可写入 /data/config.toml 的 github_token 字段（env 优先）
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
