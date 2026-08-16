@@ -14,6 +14,7 @@
  * - 与 themeService 正交：theme 管全局色相，desktop 管桌面背景。
  */
 import { browser } from "$app/environment";
+import { backendSession } from "$lib/auth/backend-session.svelte";
 import type { AppService } from "$lib/os/services";
 
 /**
@@ -53,6 +54,10 @@ export interface DesktopService extends AppService {
   setBackground(bg: DesktopBackground): void;
   /** 重置为默认背景。 */
   reset(): void;
+  /** 从站点层（managerStore ns=desktop）装载默认值（boot 调用；本地覆盖优先）。 */
+  loadSiteDefaults(): Promise<void>;
+  /** 清除本浏览器个人覆盖。 */
+  clearLocalOverride(): void;
 }
 
 /** 校验背景配置结构（从 localStorage 恢复时用）。 */
@@ -97,16 +102,57 @@ class DesktopServiceImpl implements DesktopService {
     this.persist();
   }
 
+  async loadSiteDefaults(): Promise<void> {
+    if (!browser) return;
+    try {
+      const resp = await fetch("/api/store/desktop");
+      if (!resp.ok) return;
+      const parsed = (await resp.json()) as unknown;
+      if (isValidBackground(parsed)) {
+        this.background = parsed;
+      }
+      this.restore(); // 本地覆盖重新套用（local > site）
+    } catch {
+      // 后端不可达：保持出厂默认
+    }
+  }
+
+  clearLocalOverride(): void {
+    if (!browser) return;
+    localStorage.removeItem(STORAGE_KEY);
+    void this.loadSiteDefaults();
+  }
+
   reset(): void {
     this.setBackground(DEFAULT_BACKGROUND);
   }
 
+  /** 写入策略与 theme 一致：管理员 → 站点层（成功清本地覆盖），非管理员 → 本地层。 */
   private persist(): void {
     if (!browser) return;
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.background));
-    } catch {
-      // 存储不可用，忽略
+    const data = JSON.stringify(this.background);
+    if (backendSession.isManager) {
+      void fetch("/api/store/desktop", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: data,
+      })
+        .then((resp) => {
+          if (resp.ok) {
+            localStorage.removeItem(STORAGE_KEY);
+          } else {
+            localStorage.setItem(STORAGE_KEY, data);
+          }
+        })
+        .catch(() => {
+          localStorage.setItem(STORAGE_KEY, data);
+        });
+    } else {
+      try {
+        localStorage.setItem(STORAGE_KEY, data);
+      } catch {
+        // 存储不可用，忽略
+      }
     }
   }
 

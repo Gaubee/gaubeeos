@@ -1,3 +1,4 @@
+import { backendSession } from "$lib/auth/backend-session.svelte";
 import { authStore, type GithubUser } from "$lib/auth/session.svelte";
 /**
  * AccountService：账户能力接口（GaubeeOS 应用服务总线的一部分）。
@@ -88,7 +89,8 @@ class AccountServiceImpl implements AccountService {
   }
 
   async logout(): Promise<void> {
-    await authStore.logout();
+    void backendSession.logout();
+    authStore.logout();
   }
 
   async refresh(): Promise<void> {

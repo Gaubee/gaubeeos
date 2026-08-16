@@ -33,6 +33,8 @@ mod config;
 mod github;
 mod manifest;
 mod seo;
+mod session;
+mod store;
 mod sync;
 
 use sync::AppState;
@@ -76,6 +78,11 @@ async fn async_main() {
     let state = Arc::new(AppState::new(data_dir.clone(), token));
     *state.config.write().await = disk_config.clone();
 
+    state.store.boot().await;
+    tracing::info!(
+        "managerStore：模式 = {:?}（namespace=appId，配额 5MB；env MANAGER_STORE_MODE 可切 git）",
+        state.store.mode()
+    );
     let ids: Vec<String> = disk_config.sources.iter().map(|s| s.id.clone()).collect();
     state.restore_states(&ids).await;
     let enabled: Vec<config::SourceConfig> = disk_config
@@ -144,6 +151,10 @@ async fn async_main() {
         .fallback_service(serve_dir)
         .layer(middleware::from_fn(cache_and_mime))
         .layer(CompressionLayer::new())
+        .layer(middleware::from_fn_with_state(
+            Arc::clone(&state),
+            session::session_middleware,
+        ))
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind(addr)

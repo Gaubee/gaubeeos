@@ -10,6 +10,9 @@
 <script lang="ts">
   import { siteStore, type FooterLink, type SiteSeo } from '$lib/site/site-store.svelte'
   import { notifyError, notifySuccess } from '$lib/apps/builtin/notifications/service.svelte'
+  import { requireManagerOrNotify } from '$lib/auth/require-manager'
+  import { backendSession } from '$lib/auth/backend-session.svelte'
+  import { appManager } from '$lib/apps/AppManager.svelte'
   import { Button } from '$lib/components/ui/button'
   import { Input } from '$lib/components/ui/input'
   import { Label } from '$lib/components/ui/label'
@@ -70,6 +73,7 @@
   }
 
   async function handleSave(): Promise<void> {
+    if (!requireManagerOrNotify()) return
     const cleaned = draftLinks
       .map((l) => ({ ...l, label: l.label.trim(), url: l.url.trim() }))
       .filter((l) => l.label && l.url)
@@ -99,6 +103,36 @@
     } finally {
       saving = false
     }
+  }
+
+  // ---- managerStore 用量（manager 可见） ----
+  interface StoreUsageRow {
+    ns: string
+    bytes: number
+  }
+  let storeUsage = $state<StoreUsageRow[]>([])
+  let storeQuota = $state(0)
+
+  $effect(() => {
+    if (backendSession.isManager) {
+      void fetch('/api/store/usage')
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (d) {
+            storeUsage = d.stores ?? []
+            storeQuota = d.quota ?? 0
+          }
+        })
+        .catch(() => {})
+    }
+  })
+
+  function nsAppName(ns: string): string {
+    return appManager.findById(ns)?.name ?? ns
+  }
+
+  function fmtBytes(n: number): string {
+    return n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1048576).toFixed(2)} MB`
   }
 </script>
 
@@ -212,6 +246,38 @@
       {saving ? '保存中…' : dirty ? '保存' : '已保存'}
     </Button>
   </div>
+
+  {#if backendSession.isManager}
+    <section class="space-y-2">
+      <h3 class="font-medium text-sm">存储用量（managerStore）</h3>
+      {#if storeUsage.length === 0}
+        <div class="text-muted-foreground px-1 text-xs">暂无应用使用后端存储。</div>
+      {:else}
+        <div class="rounded-lg border border-border">
+          <table class="w-full text-xs">
+            <thead>
+              <tr class="text-muted-foreground border-b border-border">
+                <th class="px-3 py-2 text-left font-medium">应用</th>
+                <th class="px-3 py-2 text-left font-medium">namespace</th>
+                <th class="px-3 py-2 text-right font-medium">占用</th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each storeUsage as row (row.ns)}
+                <tr class="border-b border-border last:border-b-0">
+                  <td class="px-3 py-2">{nsAppName(row.ns)}</td>
+                  <td class="text-muted-foreground px-3 py-2 font-mono">{row.ns}</td>
+                  <td class="px-3 py-2 text-right">
+                    {fmtBytes(row.bytes)} <span class="text-muted-foreground">/ {fmtBytes(storeQuota)}</span>
+                  </td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+      {/if}
+    </section>
+  {/if}
 
   <p class="text-muted-foreground text-[11px]">
     外链对新窗口打开并带 noopener。中国大陆备案站点：请添加一条 label 为备案号、url 为

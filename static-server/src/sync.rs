@@ -63,15 +63,25 @@ pub struct AppState {
     pub config: RwLock<crate::config::AppConfig>,
     /// id → runtime（含 state；读写都过这个锁）。
     pub runtime: Mutex<HashMap<String, SourceRuntime>>,
+    /// 服务端会话表（token → SessionEntry；见 session.rs）。
+    pub sessions: tokio::sync::Mutex<HashMap<String, crate::session::SessionEntry>>,
+    /// managerStore（本地/git 双后端；见 store.rs）。
+    pub store: std::sync::Arc<crate::store::StoreManager>,
 }
 
 impl AppState {
     pub fn new(data_dir: PathBuf, token: Option<String>) -> Self {
+        let mut sessions = HashMap::new();
+        crate::session::seed_dev_session(&mut sessions);
+        let gh = GitHubClient::new(token);
+        let store = crate::store::StoreManager::from_env(&data_dir, gh.clone());
         Self {
             data_dir,
-            gh: GitHubClient::new(token),
+            gh,
             config: RwLock::new(crate::config::AppConfig::default()),
             runtime: Mutex::new(HashMap::new()),
+            sessions: tokio::sync::Mutex::new(sessions),
+            store,
         }
     }
 

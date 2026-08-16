@@ -1,6 +1,12 @@
 /**
  * ThemeService：主题色相能力（GaubeeOS 应用服务总线的一部分）。
  *
+ * 分层存储（2026-08-17，managerStore 试点）：
+ * - 站点层：GET/PUT /api/store/theme（管理员设置的全站默认，匿名可读）
+ * - 个人层：localStorage（原行为保留；当前作为浏览器覆盖，未来演进为 userStore）
+ * 解析顺序：站点默认 → 本地覆盖（local > site）。管理员写入站点层并清本地覆盖；
+ * 非管理员写入本地层（主题应用虽 managerOnly，此能力保留给未来 userStore 演进）。
+ *
  * 管理运行时双旋钮色相：
  * - --primary-h：品牌强调色（橙红系），驱动 primary / chart 系列 / sidebar-primary。
  * - --base-h：中性表面色（mauve 系），驱动 foreground / muted / border / ring 等中性色。
@@ -17,6 +23,7 @@
  * 2. 扩展（2026-07-25）：新增 base color 旋钮，中性表面色可独立调整。
  */
 import { browser } from "$app/environment";
+import { backendSession } from "$lib/auth/backend-session.svelte";
 import type { AppService } from "$lib/os/services";
 
 /** 默认 primary 色相（橙红，与 app.css :root 一致）。 */
@@ -47,6 +54,12 @@ export interface ThemeService extends AppService {
   setBaseHue(hue: number): void;
   /** 重置为默认色相（primary + base）。 */
   reset(): void;
+  /** 从站点层（managerStore）装载默认值（boot 调用；本地覆盖仍优先生效）。 */
+  loadSiteDefaults(): Promise<void>;
+  /** 清除本浏览器的个人覆盖层（回到站点默认）。 */
+  clearLocalOverride(): void;
+  /** 是否存在本地覆盖。 */
+  readonly hasLocalOverride: boolean;
 }
 
 /** 归一化色相到 [0, 360)。 */
@@ -54,17 +67,51 @@ function normalizeHue(hue: number): number {
   return ((hue % 360) + 360) % 360;
 }
 
+/** 站点层 ns。 */
+const SITE_NS = "theme";
+
 class ThemeServiceImpl implements ThemeService {
   readonly id = "theme" as const;
   readonly appId = "theme" as const;
 
   hue = $state(DEFAULT_PRIMARY_HUE);
   baseHue = $state(DEFAULT_BASE_HUE);
+  hasLocalOverride = $state(false);
 
   constructor() {
     if (browser) {
       this.restore();
     }
+  }
+
+  /** 站点层装载：GET /api/store/theme → 作为默认值（仅当无本地覆盖时生效到 DOM）。 */
+  async loadSiteDefaults(): Promise<void> {
+    if (!browser) return;
+    try {
+      const resp = await fetch(`/api/store/${SITE_NS}`);
+      if (!resp.ok) return;
+      const v = (await resp.json()) as PersistedTheme;
+      if (typeof v.hue === "number") {
+        this.hue = normalizeHue(v.hue);
+        this.applyPrimaryToDom(this.hue);
+      }
+      if (typeof v.baseHue === "number") {
+        this.baseHue = normalizeHue(v.baseHue);
+        this.applyBaseToDom(this.baseHue);
+      }
+      // 本地覆盖重新套用（local > site）
+      this.restore();
+      this.notifySw();
+    } catch {
+      // 后端不可达：保持出厂默认
+    }
+  }
+
+  clearLocalOverride(): void {
+    if (!browser) return;
+    localStorage.removeItem(STORAGE_KEY);
+    this.hasLocalOverride = false;
+    void this.loadSiteDefaults();
   }
 
   setHue(hue: number): void {
@@ -121,11 +168,36 @@ class ThemeServiceImpl implements ThemeService {
     }
   }
 
+  /** 写入策略：管理员 → 站点层（成功后清本地覆盖，保持单一真相）；
+   * 非管理员 → 本地层（未来 userStore 的演进位）。 */
   private persist(): void {
     if (!browser) return;
+    const data: PersistedTheme = { hue: this.hue, baseHue: this.baseHue };
+    if (backendSession.isManager) {
+      void fetch(`/api/store/${SITE_NS}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      })
+        .then((resp) => {
+          if (resp.ok) {
+            localStorage.removeItem(STORAGE_KEY);
+            this.hasLocalOverride = false;
+          } else {
+            // 站点层写失败（会话过期等）→ 退本地层，不丢用户操作
+            this.persistLocal(data);
+          }
+        })
+        .catch(() => this.persistLocal(data));
+    } else {
+      this.persistLocal(data);
+    }
+  }
+
+  private persistLocal(data: PersistedTheme): void {
     try {
-      const data: PersistedTheme = { hue: this.hue, baseHue: this.baseHue };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      this.hasLocalOverride = true;
     } catch {
       // 存储不可用，忽略
     }
@@ -134,7 +206,11 @@ class ThemeServiceImpl implements ThemeService {
   private restore(): void {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
+      if (!raw) {
+        this.hasLocalOverride = false;
+        return;
+      }
+      this.hasLocalOverride = true;
       const parsed = JSON.parse(raw) as unknown;
       if (parsed !== null && typeof parsed === "object") {
         const obj = parsed as PersistedTheme;

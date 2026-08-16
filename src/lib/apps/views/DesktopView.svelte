@@ -25,7 +25,7 @@
   // 桌面背景已上移为系统级（.app-layout 提供，见 +layout.svelte），本视图不再渲染背景。
   // 桌面图标网格：由 desktopLayout 决定显示哪些应用及顺序（用户可管理）。
   const launcherApps = $derived(
-    desktopLayout.visibleApps(appManager.allInstalled),
+    desktopLayout.visibleApps(appManager.visibleInstalled),
   )
   const widgets = $derived(widgetRegistry.all())
 

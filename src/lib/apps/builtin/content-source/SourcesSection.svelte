@@ -15,6 +15,7 @@
   import * as api from '$lib/content-source/client'
   import type { SourceWithState, TestResult } from '$lib/content-source/types'
   import { notifyError, notifySuccess } from '$lib/apps/builtin/notifications/service.svelte'
+  import { requireManagerOrNotify } from '$lib/auth/require-manager'
   import * as Dialog from '$lib/components/ui/dialog'
   import { Button } from '$lib/components/ui/button'
   import { Badge } from '$lib/components/ui/badge'
@@ -99,6 +100,7 @@
   }
 
   async function handleTest(): Promise<void> {
+    if (!requireManagerOrNotify()) return
     if (!form.owner.trim() || !form.repo.trim() || !form.include.trim()) {
       testError = 'owner / repo / include 不能为空'
       return
@@ -121,6 +123,7 @@
   }
 
   async function handleSave(): Promise<void> {
+    if (!requireManagerOrNotify()) return
     if (!form.owner.trim() || !form.repo.trim() || !form.include.trim()) {
       notifyError('owner / repo / include 不能为空')
       return
@@ -154,6 +157,7 @@
   }
 
   async function handleSync(s: SourceWithState): Promise<void> {
+    if (!requireManagerOrNotify()) return
     syncingIds = new Set([...syncingIds, s.id])
     try {
       const outcome = await contentSourceStore.syncNow(s.id)
@@ -170,6 +174,7 @@
   }
 
   async function handleToggle(s: SourceWithState, enabled: boolean): Promise<void> {
+    if (!requireManagerOrNotify()) return
     try {
       await contentSourceStore.setEnabled(s.id, enabled)
       await contentQuery.refreshFromRemote()
@@ -179,6 +184,7 @@
   }
 
   async function handleDelete(s: SourceWithState): Promise<void> {
+    if (!requireManagerOrNotify()) return
     if (!confirm(`删除订阅「${s.display_name}」？缓存内容将一并清除。`)) return
     try {
       await contentSourceStore.remove(s.id)

@@ -30,6 +30,8 @@
   import { motionBlur } from "$lib/utils/motion";
   import { blurTransition } from "$lib/utils/motion";
   import AppShell from "$lib/app-scaffold/AppShell.svelte";
+  import ManagerOnlyGuard from "$lib/apps/views/ManagerOnlyGuard.svelte"
+  import { backendSession } from "$lib/auth/backend-session.svelte"
   import DesktopView from "$lib/apps/views/DesktopView.svelte";
   import NotFoundView from "$lib/views/NotFoundView.svelte";
   import type { Area, HistoryLocation, TabId } from "$lib/nav/controller";
@@ -253,6 +255,14 @@
            始终用 entryActivity（应用内多页面通过 entry root 的 children 嵌套表达）。
            激活时（activeTabId 命中）显示；非 entry activity 激活时隐藏让位但保留 DOM（保活）。 -->
       {#each allMainTabs as { tabId, manifest, entryActivity } (tabId)}
+        {#if manifest.managerOnly && !backendSession.isManager}
+          <!-- managerOnly 应用对非管理员：激活态显示引导页，非激活不渲染（fail-closed） -->
+          {#if isActive && activeTabId === tabId}
+            <div class="app-overlay-layer">
+              <ManagerOnlyGuard />
+            </div>
+          {/if}
+        {:else}
         {@const isThisActive = isActive && activeTabId === tabId && !nonEntryActive}
         <div
           class="app-overlay-layer"
@@ -261,6 +271,7 @@
         >
           <AppShell app={manifest} activity={entryActivity} {location} active={isThisActive} />
         </div>
+        {/if}
       {/each}
 
       <!-- 非 entry activity 层（z:20）：URL 匹配到非 entry activity 时独立渲染。
@@ -268,9 +279,15 @@
            常驻 main-area-root，仅当 nonEntryActive 时可见。 -->
       <div class="deep-link-layer" class:deep-link-layer-hidden={!nonEntryActive}>
         {#if nonEntryActive && mainResolution}
-          <div class="h-full overflow-auto bg-background">
-            <AppShell app={mainResolution.manifest} activity={mainResolution.activity} {location} />
-          </div>
+          {#if mainResolution.manifest.managerOnly && !backendSession.isManager}
+            <div class="h-full overflow-auto bg-background">
+              <ManagerOnlyGuard />
+            </div>
+          {:else}
+            <div class="h-full overflow-auto bg-background">
+              <AppShell app={mainResolution.manifest} activity={mainResolution.activity} {location} />
+            </div>
+          {/if}
         {/if}
       </div>
 

@@ -31,5 +31,13 @@ services:
       # 可选：GitHub token（匿名 60 次/小时；配 token 5000 次/小时）
       # 也可写入 /data/config.toml 的 github_token 字段（env 优先）
       - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      # manager 权限体系（详见 README）：管理员 GitHub login 列表
+      - MANAGER_GITHUB_ACCOUNTS=${MANAGER_GITHUB_ACCOUNTS:-}
+      # managerStore git 后端（可选，local 为默认）：
+      # - MANAGER_STORE_MODE=git
+      # - MANAGER_STORE_REPO=owner/repo（写入凭据复用 GITHUB_TOKEN，需 push 权限）
+      # - MANAGER_STORE_PATH=gaubeeos-store
+      - MANAGER_STORE_MODE=${MANAGER_STORE_MODE:-}
+      - MANAGER_STORE_REPO=${MANAGER_STORE_REPO:-}
     labels:
       - "com.centurylinklabs.watchtower.enable=true"

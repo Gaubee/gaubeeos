@@ -25,6 +25,8 @@
   import { navStore } from '$lib/nav/nav.svelte'
   import { gaubeeos } from '$lib/os/services'
   import { siteStore } from '$lib/site/site-store.svelte'
+  import { backendSession } from '$lib/auth/backend-session.svelte'
+  import { authStore } from '$lib/auth/session.svelte'
   import { seoStore } from '$lib/seo/head.svelte'
   import AreaOutlet from '$lib/components/layout/AreaOutlet.svelte'
   import DesktopSidebar from '$lib/components/layout/DesktopSidebar.svelte'
@@ -39,6 +41,7 @@
   import { ModeWatcher } from 'mode-watcher'
   import { dismissBoot, animateAppIn } from '$lib/boot'
   import { desktopService } from '$lib/apps/builtin/desktop/service.svelte'
+  import { themeService } from '$lib/apps/builtin/theme/service.svelte'
   import { backgroundToCss } from '$lib/apps/builtin/desktop/background-render'
 
   let { children } = $props()
@@ -48,8 +51,14 @@
   const systemBackground = $derived(backgroundToCss(desktopService.background))
 
   onMount(() => {
-    // 0. 初始化内容管道 + 站点配置（状态栏外链，后端不可达时回退默认）
+    // 0. 初始化内容管道 + 站点配置 + 后端会话（身份确认后再渲染管理能力）
     void siteStore.load()
+    void themeService.loadSiteDefaults()
+    void desktopService.loadSiteDefaults()
+    void (async () => {
+      await authStore.refresh()
+      await backendSession.syncFromAuth()
+    })()
     //    AppManager.init 已在模块加载时投影 source/processor；此处确保 browser 端执行一次。
     contentQuery.init()
 

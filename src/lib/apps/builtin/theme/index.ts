@@ -20,6 +20,8 @@ export const themeApp: AppEntry = {
     name: "主题",
     icon: PaletteIcon,
     category: "system",
+    // 站点级外观（主题/壁纸）由管理员统一配置（managerStore）；未来 userStore 开放给访客
+    managerOnly: true,
     defaultArea: "main",
     activities: [
       {

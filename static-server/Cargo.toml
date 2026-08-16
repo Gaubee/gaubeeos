@@ -20,6 +20,8 @@ thiserror = "2"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 humantime = "2"
+# 会话 token 随机数（最小依赖，无传递）
+getrandom = "0.2"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 
 # 体积优先（scratch 镜像）：LTO + strip + 单 codegen unit，

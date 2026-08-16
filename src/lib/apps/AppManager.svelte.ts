@@ -1,3 +1,4 @@
+import { backendSession } from "$lib/auth/backend-session.svelte";
 import { contentQuery } from "$lib/content-pipeline/query.svelte";
 import { contentPipelineRegistry } from "$lib/content-pipeline/registry";
 import { appServiceRegistry } from "$lib/os/services";
@@ -93,6 +94,11 @@ class AppManager {
   // ---- 派生视图 ----
 
   /** 所有已安装应用（含系统内置）。 */
+  /** 可见应用 = 已安装 ∩（非 managerOnly 或当前是管理员）。fail-closed：身份未确认时隐藏。 */
+  get visibleInstalled(): InstalledApp[] {
+    return this.allInstalled.filter((app) => !app.managerOnly || backendSession.isManager);
+  }
+
   get allInstalled(): InstalledApp[] {
     return this.installedIds.map((id) => this.toInstalledApp(id)).filter(Boolean) as InstalledApp[];
   }

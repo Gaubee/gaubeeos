@@ -105,6 +105,8 @@ export interface AppActivity {
    * 缺省时继承 manifest.hiddenFromNav（作为该 app 所有 activity 的默认值）。
    */
   hiddenFromNav?: boolean;
+  /** 仅管理员可用（非管理员隐藏 + 深链引导；API 门禁在后端）。 */
+  managerOnly?: boolean;
 }
 
 /** 应用对外拉起契约（iPadOS URL Scheme / Android Intent）。
@@ -144,6 +146,8 @@ export interface AppManifest {
    * 用于只通过深链接或浮层进入的应用（如 account、search、notifications）。
    */
   hiddenFromNav?: boolean;
+  /** 仅管理员可用（非管理员隐藏 + 深链引导；API 门禁在后端）。 */
+  managerOnly?: boolean;
   /** CLI 命令列表（安装时注册到 PATH）。 */
   cliCommands?: CliCommand[];
   /** VFS 路径所有权（该应用"拥有"哪些路径）。 */

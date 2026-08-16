@@ -179,6 +179,9 @@
   function selectSvgTemplate(templateId: string) {
     desktopService.setBackground({ type: 'svg', templateId, hue })
   }
+  function handleClearOverride(): void {
+    themeService.clearLocalOverride()
+  }
 </script>
 
 <div class="mx-auto max-w-2xl space-y-6 p-6">

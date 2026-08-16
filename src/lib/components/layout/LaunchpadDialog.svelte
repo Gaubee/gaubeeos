@@ -22,8 +22,8 @@
   import XIcon from '@lucide/svelte/icons/x'
   import type { InstalledApp } from '$lib/apps/types'
 
-  const visibleApps = $derived(desktopLayout.visibleApps(appManager.allInstalled))
-  const hiddenApps = $derived(desktopLayout.hiddenApps(appManager.allInstalled))
+  const visibleApps = $derived(desktopLayout.visibleApps(appManager.visibleInstalled))
+  const hiddenApps = $derived(desktopLayout.hiddenApps(appManager.visibleInstalled))
 
   // 拖拽状态：draggedAppId + 拖拽来源组
   let draggedAppId = $state<string | null>(null)

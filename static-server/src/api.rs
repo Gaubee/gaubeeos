@@ -12,7 +12,7 @@
 
 use std::sync::Arc;
 
-use axum::extract::{Path, Query, State};
+use axum::extract::{Extension, Path, Query, State};
 use axum::http::{header, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
@@ -24,6 +24,7 @@ use crate::config::{
     compile_glob, save_config, Collection, FooterLink, SiteConfig, SourceConfig, ValidationError,
 };
 use crate::manifest::{Manifest, ManifestEntry};
+use crate::session::{self, RequestIdentity};
 use crate::sync::{
     schedule_source, stop_source, sync_once, unschedule_source, AppState, SourceState,
 };
@@ -39,6 +40,15 @@ pub fn api_router() -> Router<Arc<AppState>> {
         .route("/sources/{id}/enabled", post(set_enabled))
         .route("/sources/test", post(test_source))
         .route("/site", get(get_site).put(put_site))
+        .route(
+            "/session",
+            get(get_session).post(create_session).delete(delete_session),
+        )
+        .route("/store/usage", get(get_store_usage))
+        .route(
+            "/store/{ns}",
+            get(get_store).put(put_store).delete(delete_store),
+        )
         .route("/content/manifest", get(get_manifest))
         .route("/content/file", get(get_file))
 }
@@ -128,8 +138,12 @@ fn bad_request(msg: impl std::fmt::Display) -> Response {
 
 async fn create_source(
     State(state): State<Arc<AppState>>,
+    Extension(identity): Extension<RequestIdentity>,
     Json(input): Json<SourceInput>,
 ) -> Response {
+    if let Err(resp) = require_manager(&identity) {
+        return resp;
+    }
     let id = SourceConfig::derive_id(&input.owner, &input.repo, &input.git_ref, &input.include);
     let cfg = input.into_config(id);
     if let Err(e) = cfg.validate() {
@@ -184,8 +198,12 @@ async fn create_source(
 async fn update_source(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
+    Extension(identity): Extension<RequestIdentity>,
     Json(input): Json<SourceInput>,
 ) -> Response {
+    if let Err(resp) = require_manager(&identity) {
+        return resp;
+    }
     let cfg = input.into_config(id.clone());
     if let Err(e) = cfg.validate() {
         return bad_request(e);
@@ -213,7 +231,14 @@ async fn update_source(
     Json(json!({ "id": id, "resynced": true })).into_response()
 }
 
-async fn delete_source(State(state): State<Arc<AppState>>, Path(id): Path<String>) -> Response {
+async fn delete_source(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Extension(identity): Extension<RequestIdentity>,
+) -> Response {
+    if let Err(resp) = require_manager(&identity) {
+        return resp;
+    }
     {
         let mut config = state.config.write().await;
         let before = config.sources.len();
@@ -239,8 +264,12 @@ async fn delete_source(State(state): State<Arc<AppState>>, Path(id): Path<String
 async fn set_enabled(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
+    Extension(identity): Extension<RequestIdentity>,
     Json(body): Json<serde_json::Value>,
 ) -> Response {
+    if let Err(resp) = require_manager(&identity) {
+        return resp;
+    }
     let Some(enabled) = body.get("enabled").and_then(|v| v.as_bool()) else {
         return bad_request("body 需要 { enabled: boolean }");
     };
@@ -269,7 +298,14 @@ async fn set_enabled(
     Json(json!({ "id": id, "enabled": enabled })).into_response()
 }
 
-async fn sync_source(State(state): State<Arc<AppState>>, Path(id): Path<String>) -> Response {
+async fn sync_source(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Extension(identity): Extension<RequestIdentity>,
+) -> Response {
+    if let Err(resp) = require_manager(&identity) {
+        return resp;
+    }
     let cfg = {
         let config = state.config.read().await;
         match config.sources.iter().find(|s| s.id == id) {
@@ -300,7 +336,14 @@ struct TestResult {
     sample: Vec<String>,
 }
 
-async fn test_source(State(state): State<Arc<AppState>>, Json(input): Json<TestInput>) -> Response {
+async fn test_source(
+    State(state): State<Arc<AppState>>,
+    Extension(identity): Extension<RequestIdentity>,
+    Json(input): Json<TestInput>,
+) -> Response {
+    if let Err(resp) = require_manager(&identity) {
+        return resp;
+    }
     if input.owner.trim().is_empty() || input.repo.trim().is_empty() {
         return bad_request(ValidationError::MissingRepo);
     }
@@ -376,6 +419,165 @@ async fn get_manifest(State(state): State<Arc<AppState>>) -> Response {
     Json(m).into_response()
 }
 
+// ---- /api/session：会话（GitHub token 交换 → HttpOnly cookie）----
+
+#[derive(Deserialize)]
+struct SessionInput {
+    token: String,
+}
+
+/// 交换：验证 gh token（GET /user）→ 建会话 → Set-Cookie。
+async fn create_session(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+    Json(input): Json<SessionInput>,
+) -> Response {
+    let token = input.token.trim().to_string();
+    if token.is_empty() {
+        return bad_request("token 不能为空");
+    }
+    let login = match state.gh.fetch_user_login(&token).await {
+        Ok(l) => l,
+        Err(e) => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "error": format!("GitHub token 验证失败：{e}") })),
+            )
+                .into_response()
+        }
+    };
+    let sess_token = session::generate_session_token();
+    {
+        let mut sessions = state.sessions.lock().await;
+        sessions.insert(
+            sess_token.clone(),
+            session::SessionEntry {
+                login: login.clone(),
+                created_at: chrono::Utc::now().to_rfc3339(),
+            },
+        );
+    }
+    let _ = headers; // cookie 只从响应下发；请求头无需读取
+    (
+        [(
+            header::SET_COOKIE,
+            session::build_session_cookie(&sess_token),
+        )],
+        Json(json!({ "login": login, "role": session::role_of(Some(&login)) })),
+    )
+        .into_response()
+}
+
+/// 当前会话身份（匿名也 200，role=anonymous）。
+async fn get_session(Extension(identity): Extension<RequestIdentity>) -> Response {
+    Json(json!({
+        "authenticated": identity.login.is_some(),
+        "login": identity.login,
+        "role": identity.role(),
+    }))
+    .into_response()
+}
+
+/// 登出：删会话 + 过期 cookie。
+async fn delete_session(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+) -> Response {
+    if let Some(tok) = session::session_token_from_headers(&headers) {
+        state.sessions.lock().await.remove(&tok);
+    }
+    (
+        [(header::SET_COOKIE, session::expire_session_cookie())],
+        Json(json!({ "ok": true })),
+    )
+        .into_response()
+}
+
+// ---- /api/store：managerStoreService（namespace = appId）----
+
+/// 读：匿名可读（站点默认主题等需要），404 = 未设置。
+async fn get_store(State(state): State<Arc<AppState>>, Path(ns): Path<String>) -> Response {
+    match state.store.get(&ns).await {
+        Some(v) => Json(v).into_response(),
+        None => not_found(format!("store:{ns}")),
+    }
+}
+
+/// 写：manager only，body 即 JSON 值（≤5MB，413 超配额）。
+async fn put_store(
+    State(state): State<Arc<AppState>>,
+    Path(ns): Path<String>,
+    Extension(identity): Extension<RequestIdentity>,
+    Json(value): Json<serde_json::Value>,
+) -> Response {
+    if let Err(resp) = require_manager(&identity) {
+        return resp;
+    }
+    match state.store.put(&ns, value).await {
+        Ok(()) => Json(json!({ "ok": true, "ns": ns })).into_response(),
+        Err(e) => {
+            let status = if e.contains("超出配额") {
+                StatusCode::PAYLOAD_TOO_LARGE
+            } else {
+                StatusCode::BAD_REQUEST
+            };
+            (status, Json(json!({ "error": e }))).into_response()
+        }
+    }
+}
+
+/// 删除 namespace（manager only）。
+async fn delete_store(
+    State(state): State<Arc<AppState>>,
+    Path(ns): Path<String>,
+    Extension(identity): Extension<RequestIdentity>,
+) -> Response {
+    if let Err(resp) = require_manager(&identity) {
+        return resp;
+    }
+    match state.store.remove(&ns).await {
+        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => bad_request(e),
+    }
+}
+
+/// 用量（manager only）。
+async fn get_store_usage(
+    State(state): State<Arc<AppState>>,
+    Extension(identity): Extension<RequestIdentity>,
+) -> Response {
+    if let Err(resp) = require_manager(&identity) {
+        return resp;
+    }
+    let usage = state.store.usage().await;
+    Json(json!({
+        "quota": crate::store::QUOTA_BYTES,
+        "stores": usage
+            .into_iter()
+            .map(|u| json!({ "ns": u.ns, "bytes": u.bytes }))
+            .collect::<Vec<_>>(),
+    }))
+    .into_response()
+}
+
+/// 写操作门禁：未登录 401 / 已登录非管理员 403。
+#[allow(clippy::result_large_err)]
+pub fn require_manager(identity: &RequestIdentity) -> Result<(), Response> {
+    match identity.login.as_deref() {
+        None => Err((
+            StatusCode::UNAUTHORIZED,
+            Json(json!({ "error": "需要登录", "code": "unauthenticated" })),
+        )
+            .into_response()),
+        Some(login) if session::is_manager(login) => Ok(()),
+        Some(_) => Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({ "error": "需要管理员权限", "code": "forbidden" })),
+        )
+            .into_response()),
+    }
+}
+
 // ---- /api/site：站点展示配置（状态栏外链）----
 
 async fn get_site(State(state): State<Arc<AppState>>) -> Response {
@@ -408,7 +610,14 @@ struct FooterLinkInput {
 
 /// 校验并落盘站点配置。规则：label 非空、url 必须 http(s) 开头、≤10 条；
 /// id 缺省由 label+url 派生（稳定幂等）。
-async fn put_site(State(state): State<Arc<AppState>>, Json(input): Json<SiteInput>) -> Response {
+async fn put_site(
+    State(state): State<Arc<AppState>>,
+    Extension(identity): Extension<RequestIdentity>,
+    Json(input): Json<SiteInput>,
+) -> Response {
+    if let Err(resp) = require_manager(&identity) {
+        return resp;
+    }
     if input.footer_links.len() > 10 {
         return bad_request("外链数量上限 10 条");
     }

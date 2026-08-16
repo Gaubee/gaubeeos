@@ -61,6 +61,11 @@ class AuthStore {
   /** GitHub access token（内存，不持久化）。 */
   private token: string | null = null;
 
+  /** 内存 token 读取（供后端会话交换；勿用于其它用途，GitHub 直连请走 fetchGithub）。 */
+  getToken(): string | null {
+    return this.token;
+  }
+
   private inFlight: Promise<void> | null = null;
 
   /**
