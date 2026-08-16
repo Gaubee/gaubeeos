@@ -112,11 +112,10 @@ class ActivityLog {
 export const activityLog = new ActivityLog();
 
 /**
- * 默认 repo 标识（owner/repo 字符串）。
- * 内核订阅模式：由第一个启用的订阅源派生；无源时回退 gaubee/gaubee.com
- * （GitHubApp 只读浏览兜底，写路径会因无内容而为空）。
+ * 默认 repo 标识（owner/repo 字符串），无订阅源时为 null。
+ * 内核订阅模式（2026-08-16）：由第一个启用的订阅源派生，不再回退硬编码仓库。
  */
-export function defaultRepoRef(): string {
+export function defaultRepoRef(): string | null {
   const repo = contentSourceStore.primaryRepo;
-  return repo ? `${repo.owner}/${repo.repo}` : "gaubee/gaubee.com";
+  return repo ? `${repo.owner}/${repo.repo}` : null;
 }

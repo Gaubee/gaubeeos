@@ -1,4 +1,5 @@
 import { defineApp } from "$lib/app-scaffold/define-app";
+import ArticlesSourcesSection from "$lib/apps/views/settings/ArticlesSourcesSection.svelte";
 import { searchIndexProcessor } from "$lib/content-pipeline/processors/search-index";
 import { tagsProcessor } from "$lib/content-pipeline/processors/tags";
 import { articlesSource } from "$lib/content-pipeline/sources/articles";
@@ -79,6 +80,17 @@ export const articlesApp = defineApp({
     },
   ],
   vfsOwnership: ["src/content/articles/"],
+  // ★ 应用设置：文章源管理（系统设置 → 应用组 → 文章源，深链 /app/settings/articles.sources）
+  settingsSections: [
+    {
+      id: "articles.sources",
+      title: "文章源",
+      description: "订阅 GitHub 仓库作为文章来源",
+      icon: Newspaper,
+      order: 10,
+      render: ArticlesSourcesSection,
+    },
+  ],
   searchService: () =>
     createRuntimeSearchService({ appId: "articles", collection: "articles", appName: "文章" }),
   // ★ 声明式内容管道：articles 源 + 标签/搜索索引处理器

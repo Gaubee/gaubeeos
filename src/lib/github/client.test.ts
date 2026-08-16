@@ -15,8 +15,18 @@ vi.mock("$lib/auth/session.svelte", () => ({
 // mock $app/environment（os/services 间接依赖）
 vi.mock("$app/environment", () => ({ browser: true }));
 
-const { getFileText, commitChanges, getFileWithSha, updateFileContent, createBlob } =
-  await import("./client");
+const {
+  getFileText,
+  commitChanges,
+  getFileWithSha,
+  updateFileContent,
+  createBlob,
+  registerDefaultRepo,
+} = await import("./client");
+
+// 内核订阅模式：resolveRepo 的默认仓库由 store 注入；测试环境注册固定默认值
+// （保持原断言的 repos/gaubee/gaubee.com URL 形态）。
+registerDefaultRepo({ owner: "gaubee", repo: "gaubee.com", ref: "main" });
 const { NotAuthenticatedError } = await import("$lib/os/services");
 
 /** 构造 fake Response。body 同时供 json() 和 text()（assertOk 读 text 判断 rate limit）。 */

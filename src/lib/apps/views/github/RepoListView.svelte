@@ -13,6 +13,7 @@
 -->
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte'
+  import { contentSourceStore } from '$lib/content-source/store.svelte'
   import { navController } from '$lib/nav/nav-controller-instance'
   import { useParams } from '$lib/router'
   import { accountService } from '$lib/apps/builtin/account/service'
@@ -26,7 +27,6 @@
     type RepoSummary,
     type OrgSummary,
   } from '$lib/apps/installable/github/repo-api'
-  import { OWNER, REPO } from '$lib/github/client'
   import { Button } from '$lib/components/ui/button'
   import { Input } from '$lib/components/ui/input'
   import { Badge } from '$lib/components/ui/badge'
@@ -582,7 +582,7 @@
         {#if r.archived}
           <Badge variant="outline" class="text-[10px]">归档</Badge>
         {/if}
-        {#if r.owner.login === OWNER && r.name === REPO}
+        {#if r.owner.login === (contentSourceStore.primaryRepo?.owner ?? '\u0000') && r.name === contentSourceStore.primaryRepo?.repo}
           <Badge variant="default" class="text-[10px]">主仓库</Badge>
         {/if}
       </div>

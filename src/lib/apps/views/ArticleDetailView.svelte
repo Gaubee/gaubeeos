@@ -10,7 +10,6 @@
   import type { ContentEntry } from '$lib/content-pipeline/types'
   import { navController } from '$lib/nav/nav-controller-instance'
   import { useParams } from '$lib/router'
-  import { OWNER } from '$lib/github/client'
   import { authStore } from '$lib/auth/session.svelte'
   import MarkdownViewer from '$lib/markdown/MarkdownViewer.svelte'
   import TocTree from './TocTree.svelte'
@@ -27,7 +26,7 @@
 
   /** 当前登录用户是否为仓库本人（显示编辑入口）。 */
   const isOwner = $derived(
-    !!authStore.state.user && authStore.state.user.login.toLowerCase() === OWNER.toLowerCase(),
+    !!authStore.state.user && authStore.state.user.login.toLowerCase() === (contentSourceStore.primaryRepo?.owner ?? '').toLowerCase(),
   )
 
   /** 跳 GithubEditorApp 编辑当前文章。 */

@@ -10,7 +10,6 @@ import { vfs, type VfsNode } from "./vfs";
 
 // re-export 供视图使用
 export { vfs, type VfsNode };
-export { OWNER, REPO, BRANCH } from "./vfs";
 
 class VfsStore {
   /** VFS 内所有文件（reactive，按 path 排序）。 */

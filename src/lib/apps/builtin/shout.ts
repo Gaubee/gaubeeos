@@ -1,8 +1,3 @@
-import { searchIndexProcessor } from "$lib/content-pipeline/processors/search-index";
-import { tagsProcessor } from "$lib/content-pipeline/processors/tags";
-import { eventsSource } from "$lib/content-pipeline/sources/events";
-import { leafRoute } from "$lib/router";
-import { createRuntimeSearchService } from "$lib/search/runtime-service";
 /**
  * 说说应用（系统内置，不可卸载）。
  *
@@ -16,6 +11,12 @@ import { createRuntimeSearchService } from "$lib/search/runtime-service";
  * 但 tags/search-index 已由 articles 注册且按 collection 去重，这里仅声明意图，
  * 实际执行时全量 entries 会被同一处理器消费）。
  */
+import ShoutSourcesSection from "$lib/apps/views/settings/ShoutSourcesSection.svelte";
+import { searchIndexProcessor } from "$lib/content-pipeline/processors/search-index";
+import { tagsProcessor } from "$lib/content-pipeline/processors/tags";
+import { eventsSource } from "$lib/content-pipeline/sources/events";
+import { leafRoute } from "$lib/router";
+import { createRuntimeSearchService } from "$lib/search/runtime-service";
 import MessageSquare from "@lucide/svelte/icons/message-square";
 
 import type { AppEntry } from "../types";
@@ -36,6 +37,17 @@ export const shoutApp: AppEntry = {
       },
     ],
     vfsOwnership: ["src/content/events/"],
+    // ★ 应用设置：说说源管理（系统设置 → 应用组 → 说说源，深链 /app/settings/shout.sources）
+    settingsSections: [
+      {
+        id: "shout.sources",
+        title: "说说源",
+        description: "订阅 GitHub 仓库作为说说来源",
+        icon: MessageSquare,
+        order: 20,
+        render: ShoutSourcesSection,
+      },
+    ],
     searchService: () =>
       createRuntimeSearchService({ appId: "shout", collection: "events", appName: "说说" }),
     // ★ 声明式内容管道：events 源；处理器与 articles 共享（注册表按 id 去重）

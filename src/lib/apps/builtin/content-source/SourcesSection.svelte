@@ -1,11 +1,11 @@
 <!--
-	ContentSourceSection：内容源订阅管理面板（设置的 render 型 section）。
+	SourcesSection：内容源订阅管理面板（通用，按集合实例化）。
 
-	职责（正交意图）：
-	1. 订阅列表：源卡片（启停 Switch / 立即同步 / 编辑 / 删除 + lastSync/错误状态）。
-	2. 新增/编辑表单（Dialog）：owner/repo/ref/collection/include/interval/slugPrefix，
-	   带「测试连接」（glob 命中预览，不下载）。
-	3. 变更联动：CRUD/同步完成后触发 contentQuery.refreshFromRemote()（列表/搜索即时刷新）。
+	「文章源」「说说源」两个应用设置子页共用本组件（wrapper 固定 collection prop）：
+	- 订阅列表：源卡片（启停 / 立即同步 / 编辑 / 删除 + lastSync/错误状态），按 collection 过滤。
+	- 新增/编辑表单（Dialog）：owner/repo/ref/include/interval/slugPrefix（集合由 prop 锁定），
+	  带「测试连接」（glob 命中预览，不下载）。
+	- 变更联动：CRUD/同步完成后触发 contentQuery.refreshFromRemote()。
 
 	数据后端：/api/sources（见 $lib/content-source），dev 经 vite proxy → :8090。
 -->
@@ -13,7 +13,7 @@
   import { contentQuery } from '$lib/content-pipeline/query.svelte'
   import { contentSourceStore } from '$lib/content-source/store.svelte'
   import * as api from '$lib/content-source/client'
-  import type { Collection, SourceWithState, TestResult } from '$lib/content-source/types'
+  import type { SourceWithState, TestResult } from '$lib/content-source/types'
   import { notifyError, notifySuccess } from '$lib/apps/builtin/notifications/service.svelte'
   import * as Dialog from '$lib/components/ui/dialog'
   import { Button } from '$lib/components/ui/button'
@@ -30,11 +30,20 @@
   import FlaskConicalIcon from '@lucide/svelte/icons/flask-conical'
   import { onMount } from 'svelte'
 
+  interface Props {
+    /** 本面板管理的集合（articles=文章源 / events=说说源），由 wrapper 固定。 */
+    collection: 'articles' | 'events'
+  }
+  let { collection }: Props = $props()
+
+  const collectionLabel = $derived(collection === 'articles' ? '文章' : '说说')
+  const defaultInclude = $derived(`src/content/${collection}/**/*.md`)
+
   onMount(() => {
     void contentSourceStore.ensureLoaded()
   })
 
-  const sources = $derived(contentSourceStore.sources)
+  const sources = $derived(contentSourceStore.sources.filter((s) => s.collection === collection))
   const status = $derived(contentSourceStore.status)
 
   // ---- 表单状态 ----
@@ -46,8 +55,7 @@
     owner: '',
     repo: '',
     ref: '',
-    collection: 'articles' as Collection,
-    include: 'src/content/articles/**/*.md',
+    include: '',
     slugPrefix: '',
     interval: '1h',
   })
@@ -65,8 +73,7 @@
       owner: '',
       repo: '',
       ref: '',
-      collection: 'articles',
-      include: 'src/content/articles/**/*.md',
+      include: defaultInclude,
       slugPrefix: '',
       interval: '1h',
     }
@@ -82,7 +89,6 @@
       owner: s.owner,
       repo: s.repo,
       ref: s.ref,
-      collection: s.collection,
       include: s.include,
       slugPrefix: s.slug_prefix ?? '',
       interval: s.interval,
@@ -90,17 +96,6 @@
     testResult = null
     testError = null
     dialogOpen = true
-  }
-
-  function onCollectionChange(v: Collection): void {
-    form.collection = v
-    // 便捷默认 include（未自定义时跟随切换）
-    if (
-      form.include === 'src/content/articles/**/*.md' ||
-      form.include === 'src/content/events/**/*.md'
-    ) {
-      form.include = `src/content/${v}/**/*.md`
-    }
   }
 
   async function handleTest(): Promise<void> {
@@ -137,7 +132,7 @@
         owner: form.owner.trim(),
         repo: form.repo.trim(),
         ref: form.ref.trim(),
-        collection: form.collection,
+        collection,
         include: form.include.trim(),
         slug_prefix: form.slugPrefix.trim() || undefined,
         interval: form.interval,
@@ -210,7 +205,7 @@
 
   {#if sources.length === 0}
     <div class="text-muted-foreground px-1 py-2 text-xs">
-      尚未订阅任何内容源。添加一个 GitHub 仓库作为文章/说说来源。
+      尚未订阅任何{collectionLabel}源。添加一个 GitHub 仓库作为{collectionLabel}来源。
     </div>
   {:else}
     <div class="space-y-2">
@@ -281,27 +276,15 @@
             <Input id="src-repo" bind:value={form.repo} placeholder="gaubee.com" />
           </div>
         </div>
-        <div class="grid grid-cols-2 gap-3">
-          <div class="grid gap-1.5">
-            <Label for="src-ref">ref（可选，默认分支）</Label>
-            <Input id="src-ref" bind:value={form.ref} placeholder="main" />
-          </div>
-          <div class="grid gap-1.5">
-            <Label>内容类型</Label>
-            <Select.Root type="single" value={form.collection} onValueChange={(v) => v && onCollectionChange(v as Collection)}>
-              <Select.Trigger class="w-full">{form.collection === 'articles' ? '文章' : '说说'}</Select.Trigger>
-              <Select.Content>
-                <Select.Item value="articles" label="文章" />
-                <Select.Item value="events" label="说说" />
-              </Select.Content>
-            </Select.Root>
-          </div>
+        <div class="grid gap-1.5">
+          <Label for="src-ref">ref（可选，默认跟随仓库主分支）</Label>
+          <Input id="src-ref" bind:value={form.ref} placeholder="main" />
         </div>
         <div class="grid gap-1.5">
           <Label for="src-include">include（路径匹配 glob）</Label>
           <Input id="src-include" bind:value={form.include} placeholder="src/content/articles/**/*.md" class="font-mono text-xs" />
           <span class="text-muted-foreground text-[11px]">
-            匹配的文件路径（仓库相对）→ 本地 URL：/article/{form.collection}/{'{slug 前缀}'}{form.collection === 'articles' ? '0063.my-post' : '00001.my-event'}
+            匹配的文件路径（仓库相对）→ 本地 URL：/article/{collection}/{'{slug 前缀}'}{collection === 'articles' ? '0063.my-post' : '00001.my-event'}
           </span>
         </div>
         <div class="grid grid-cols-2 gap-3">

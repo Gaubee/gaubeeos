@@ -11,6 +11,7 @@
  * 状态机：idle → loading → ready | error（后端不可达时不阻塞 OS 启动，视图显示空态）。
  */
 import { browser } from "$app/environment";
+import { registerDefaultRepo } from "$lib/github/client";
 
 import * as api from "./client";
 import type { Manifest, ManifestEntry, SourceInput, SourceWithState } from "./types";
@@ -50,7 +51,13 @@ class ContentSourceStore {
       this.error = e instanceof Error ? e.message : String(e);
     } finally {
       this.#loading = null;
+      this.#syncDefaultRepo();
     }
+  }
+
+  /** 把主仓库注入 github/client 的默认 RepoRef（无订阅时置 null，调用方得到显式错误）。 */
+  #syncDefaultRepo(): void {
+    registerDefaultRepo(this.primaryRepo ? { ...this.primaryRepo } : null);
   }
 
   async #refreshSources(): Promise<void> {
@@ -84,6 +91,7 @@ class ContentSourceStore {
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
     }
+    this.#syncDefaultRepo();
   }
 
   // ---- CRUD（成功后自动刷新；失败向上抛给 UI toast）----
@@ -108,6 +116,7 @@ class ContentSourceStore {
   async setEnabled(id: string, enabled: boolean) {
     await api.setEnabled(id, enabled);
     await this.#refreshSources();
+    this.#syncDefaultRepo();
   }
 
   async syncNow(id: string) {

@@ -80,12 +80,32 @@ impl SourceConfig {
     }
 }
 
+/// 底部状态栏外链（如 GitHub 源码入口、ICP 备案号）。
+/// 备案合规场景：label=备案号，url=https://beian.miit.gov.cn/。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct FooterLink {
+    pub id: String,
+    pub label: String,
+    pub url: String,
+}
+
+/// 站点展示配置（部署者身份相关，全站生效）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct SiteConfig {
+    /// 底部状态栏外链列表（空 = 不渲染任何链接）。
+    #[serde(default)]
+    pub footer_links: Vec<FooterLink>,
+}
+
 /// 全局配置。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AppConfig {
     /// GitHub API token（可选；环境变量 GITHUB_TOKEN 优先于配置文件）。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub github_token: Option<String>,
+    /// 站点展示配置（状态栏外链等）。
+    #[serde(default)]
+    pub site: SiteConfig,
     /// 订阅源列表。
     #[serde(default)]
     pub sources: Vec<SourceConfig>,
@@ -225,6 +245,23 @@ mod tests {
     #[test]
     fn interval_parses() {
         assert_eq!(sample().interval_duration(), Duration::from_secs(3600));
+    }
+
+    #[test]
+    fn site_footer_links_roundtrip() {
+        let mut cfg = AppConfig::default();
+        cfg.site.footer_links = vec![FooterLink {
+            id: "beian".into(),
+            label: "闽ICP备17026139号-1".into(),
+            url: "https://beian.miit.gov.cn/".into(),
+        }];
+        let text = toml::to_string_pretty(&cfg).unwrap();
+        assert!(text.contains("[[site.footer_links]]"));
+        let back: AppConfig = toml::from_str(&text).unwrap();
+        assert_eq!(back.site.footer_links, cfg.site.footer_links);
+        // 无 site 段的旧配置（向后兼容）
+        let old_cfg: AppConfig = toml::from_str("sources = []\n").unwrap();
+        assert!(old_cfg.site.footer_links.is_empty());
     }
 
     #[test]

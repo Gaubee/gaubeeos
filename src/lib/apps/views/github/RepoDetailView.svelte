@@ -15,6 +15,7 @@
 -->
 <script lang="ts">
   import { onMount, untrack } from 'svelte'
+  import { contentSourceStore } from '$lib/content-source/store.svelte'
   import { navController } from '$lib/nav/nav-controller-instance'
   import { navStore } from '$lib/nav/nav.svelte'
   import { useParams, useSearch } from '$lib/router'
@@ -23,8 +24,6 @@
   import {
     listCommits,
     listContents,
-    OWNER,
-    REPO,
     type CommitInfo,
     type GhContentEntry,
   } from '$lib/github/client'
@@ -107,7 +106,8 @@
   /** 是否主仓库（结构性控制：变更 tab 是否显示/加载）。
    *  大小写不敏感（与 GitHub owner/repo 行为一致；编辑权限的细粒度判定见 RepoEditPermission）。 */
   const isMainRepo = $derived(
-    owner.toLowerCase() === OWNER.toLowerCase() && repo.toLowerCase() === REPO.toLowerCase(),
+    owner.toLowerCase() === (contentSourceStore.primaryRepo?.owner ?? '').toLowerCase() &&
+      repo.toLowerCase() === (contentSourceStore.primaryRepo?.repo ?? '').toLowerCase(),
   )
 
   // ---- Tab 路由化（URL query 参数驱动，已通过 search schema parse）----

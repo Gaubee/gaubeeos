@@ -24,6 +24,7 @@
   import { initNavController } from '$lib/nav/nav-controller-instance'
   import { navStore } from '$lib/nav/nav.svelte'
   import { gaubeeos } from '$lib/os/services'
+  import { siteStore } from '$lib/site/site-store.svelte'
   import AreaOutlet from '$lib/components/layout/AreaOutlet.svelte'
   import DesktopSidebar from '$lib/components/layout/DesktopSidebar.svelte'
   import BottomAreaRouter from '$lib/components/layout/BottomAreaRouter.svelte'
@@ -46,7 +47,8 @@
   const systemBackground = $derived(backgroundToCss(desktopService.background))
 
   onMount(() => {
-    // 0. 初始化内容管道（用 readonlyVfs 作为 reader，browser-only）
+    // 0. 初始化内容管道 + 站点配置（状态栏外链，后端不可达时回退默认）
+    void siteStore.load()
     //    AppManager.init 已在模块加载时投影 source/processor；此处确保 browser 端执行一次。
     contentQuery.init()
 

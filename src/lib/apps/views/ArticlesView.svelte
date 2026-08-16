@@ -6,9 +6,9 @@
 -->
 <script lang="ts">
   import { contentQuery } from '$lib/content-pipeline/query.svelte'
+  import { contentSourceStore } from '$lib/content-source/store.svelte'
   import type { ContentEntry } from '$lib/content-pipeline/types'
   import { navController } from '$lib/nav/nav-controller-instance'
-  import { OWNER } from '$lib/github/client'
   import { authStore } from '$lib/auth/session.svelte'
   import YearToc from './YearToc.svelte'
   import NewContentDialog from './NewContentDialog.svelte'
@@ -30,14 +30,15 @@
 
   /** 当前登录用户是否为仓库本人（显示编辑/新增入口）。 */
   const isOwner = $derived(
-    !!authStore.state.user && authStore.state.user.login.toLowerCase() === OWNER.toLowerCase(),
+    !!authStore.state.user && authStore.state.user.login.toLowerCase() === (contentSourceStore.primaryRepo?.owner ?? '').toLowerCase(),
   )
   let newDialogOpen = $state(false)
 
   /** 新建文章确认：跳 GithubEditorApp 编辑新文件。 */
   function handleCreated(path: string): void {
     newDialogOpen = false
-    navController.navigateMain(`/app/github-editor/repo/gaubee/gaubee.com?file=${encodeURIComponent(path)}`)
+    const href = contentSourceStore.editorHrefFor(path)
+    if (href) navController.navigateMain(href)
   }
 
   // contentQuery 已在 AppManager.init() 投影内容管道后初始化（同步内存读取）

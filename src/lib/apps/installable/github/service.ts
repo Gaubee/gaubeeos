@@ -83,7 +83,7 @@ class GitServiceImpl implements GitService {
     void activityLog.log({
       action: "commit",
       actor: callerId,
-      repo: defaultRepoRef(),
+      repo: defaultRepoRef() ?? "",
       details: {
         message,
         sha,
@@ -98,7 +98,7 @@ class GitServiceImpl implements GitService {
     void activityLog.log({
       action: "revert",
       actor: callerId,
-      repo: defaultRepoRef(),
+      repo: defaultRepoRef() ?? "",
       details: { files: [path] },
     });
   }
@@ -108,7 +108,7 @@ class GitServiceImpl implements GitService {
     void activityLog.log({
       action: "sync",
       actor: callerId,
-      repo: defaultRepoRef(),
+      repo: defaultRepoRef() ?? "",
       details: subtree ? { message: `sync ${subtree}` } : {},
     });
   }

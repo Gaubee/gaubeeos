@@ -24,11 +24,11 @@ docker compose pull && docker compose up -d
 
 订阅示例：订阅本内核的源仓库（自演示）：
 
-| 字段 | 值 |
-|---|---|
+| 字段         | 值                                                 |
+| ------------ | -------------------------------------------------- |
 | owner / repo | `Gaubee` / `gaubeeos` 或任意含 markdown 的公开仓库 |
-| 内容类型 | 文章 或 说说 |
-| include | `src/content/articles/**/*.md`（路径匹配 glob） |
+| 内容类型     | 文章 或 说说                                       |
+| include      | `src/content/articles/**/*.md`（路径匹配 glob）    |
 
 include 匹配的文件路径映射为本地 URL：`/article/{内容类型}/{slug 前缀}{文件名去扩展名}`。可订阅多个源（文章/说说各多个），slug 前缀用于多源防冲突。
 
@@ -36,15 +36,15 @@ include 匹配的文件路径映射为本地 URL：`/article/{内容类型}/{slu
 
 ## 内容源字段
 
-| 字段 | 说明 | 默认 |
-|---|---|---|
-| owner / repo | GitHub 仓库坐标 | 必填 |
-| ref | 分支 / tag / sha | 空 = 默认分支 |
-| 内容类型 | `articles`（文章）/ `events`（说说） | 必选 |
-| include | 文件匹配 glob（仓库相对路径） | 必填 |
-| 同步频率 | `15m / 30m / 1h / 6h / 12h / 24h` | `1h` |
-| slug 前缀 | URL 防冲突前缀 | 空 |
-| 启停 | 停用 = 停止同步（内容保留） | 启用 |
+| 字段         | 说明                                 | 默认          |
+| ------------ | ------------------------------------ | ------------- |
+| owner / repo | GitHub 仓库坐标                      | 必填          |
+| ref          | 分支 / tag / sha                     | 空 = 默认分支 |
+| 内容类型     | `articles`（文章）/ `events`（说说） | 必选          |
+| include      | 文件匹配 glob（仓库相对路径）        | 必填          |
+| 同步频率     | `15m / 30m / 1h / 6h / 12h / 24h`    | `1h`          |
+| slug 前缀    | URL 防冲突前缀                       | 空            |
+| 启停         | 停用 = 停止同步（内容保留）          | 启用          |
 
 同步算法：分支 head sha 未变则跳过（每轮 REST ≤3 次）；变化时 Trees API 增量对比 blob sha，仅下载变化文件（正文走 raw CDN，不占 REST 限额）。
 

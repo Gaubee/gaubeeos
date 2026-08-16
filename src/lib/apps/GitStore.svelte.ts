@@ -1,3 +1,4 @@
+import { authStore } from "$lib/auth/session.svelte";
 /**
  * GitStore：基于 isomorphic-git 的多仓库管理器（GithubApp 私有实现）。
  *
@@ -52,6 +53,15 @@ const REPOS_ROOT = "/repos";
 // ---------------------------------------------------------------------------
 // 状态
 // ---------------------------------------------------------------------------
+
+/** 提交作者：登录用户优先（GitHub noreply 邮箱），未登录回退中性值。 */
+function gitCommitAuthor(): { name: string; email: string } {
+  const user = authStore.state.user;
+  if (user) {
+    return { name: user.login, email: `${user.login}@users.noreply.github.com` };
+  }
+  return { name: "GaubeeOS", email: "os@gaubeeos.local" };
+}
 
 class GitStore {
   /** 已克隆的仓库列表。 */
@@ -222,7 +232,7 @@ class GitStore {
         http,
         dir: repo.dir,
         ref: repo.branch,
-        author: { name: "GaubeeOS", email: "os@gaubee.com" },
+        author: gitCommitAuthor(),
         corsProxy: "https://cors.isomorphic-git.org",
         singleBranch: true,
         onProgress: (p: CloneProgress) => {

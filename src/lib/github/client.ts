@@ -12,9 +12,19 @@ import { fetchGithub } from "$lib/auth/session.svelte";
 import type { Collection } from "$lib/data/frontmatter";
 import { NotAuthenticatedError } from "$lib/os/services";
 
-export const OWNER = "gaubee";
-export const REPO = "gaubee.com";
-export const BRANCH = "main";
+/**
+ * 主仓库动态派生（内核订阅模式，2026-08-16）：来自第一个启用的内容源。
+ * 前端模块加载时 store 尚未就绪——resolveRepo 惰性求值，未装载时回退 null。
+ * 依赖注入方向：github/client（底层）不得 import content-source store（上层），
+ * 故由 registerDefaultRepo() 在 store 就绪时注入（见 content-source/store.svelte.ts）。
+ */
+type DefaultRepo = { owner: string; repo: string; ref?: string } | null;
+let defaultRepo: DefaultRepo = null;
+
+/** 由内容源 store 注入主仓库（无订阅 = null，相关默认调用返回空态）。 */
+export function registerDefaultRepo(repo: DefaultRepo): void {
+  defaultRepo = repo;
+}
 
 /**
  * 统一 HTTP 响应检查。
@@ -60,7 +70,14 @@ export interface RepoRef {
 }
 
 function resolveRepo(ref?: RepoRef): { owner: string; repo: string; ref: string } {
-  return { owner: ref?.owner ?? OWNER, repo: ref?.repo ?? REPO, ref: ref?.ref ?? BRANCH };
+  const owner = ref?.owner ?? defaultRepo?.owner;
+  const repo = ref?.repo ?? defaultRepo?.repo;
+  if (!owner || !repo) {
+    throw new Error(
+      "未配置内容源：无法推断默认仓库。请在 设置 → 内容源 添加订阅，或显式传入 owner/repo。",
+    );
+  }
+  return { owner, repo, ref: ref?.ref ?? defaultRepo?.ref ?? "main" };
 }
 
 /** GitHub Commits API 返回的 commit 摘要（listCommits 用）。 */
@@ -152,9 +169,9 @@ export async function listCommits(
     until?: string;
   } = {},
 ): Promise<CommitInfo[]> {
-  const { owner, repo } = resolveRepo(opts);
+  const { owner, repo, ref: defaultRef } = resolveRepo(opts);
   const params = new URLSearchParams();
-  params.set("sha", opts.sha ?? BRANCH);
+  params.set("sha", opts.sha ?? defaultRef);
   params.set("per_page", String(opts.perPage ?? 30));
   params.set("page", String(opts.page ?? 1));
   if (opts.path) params.set("path", opts.path);
@@ -364,7 +381,7 @@ export async function createBlob(
   encoding: "utf-8" | "base64",
   opts: { owner?: string; repo?: string } = {},
 ): Promise<string> {
-  const { owner = OWNER, repo = REPO } = opts;
+  const { owner, repo } = resolveRepo(opts);
   const resp = await fetchGithub(`repos/${owner}/${repo}/git/blobs`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -387,7 +404,8 @@ export async function commitChanges(
   changes: StagedChange[],
   opts: { owner?: string; repo?: string; branch?: string } = {},
 ): Promise<string> {
-  const { owner = OWNER, repo = REPO, branch = BRANCH } = opts;
+  const { owner, repo, ref: defaultBranch } = resolveRepo(opts);
+  const branch = opts.branch ?? defaultBranch;
   // 1. 获取分支最新 commit 与 tree
   const refResp = await fetchGithub(`repos/${owner}/${repo}/git/refs/heads/${branch}`);
   await assertOk(refResp, "获取 ref");

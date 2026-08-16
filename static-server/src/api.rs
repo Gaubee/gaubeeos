@@ -20,7 +20,9 @@ use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use crate::config::{compile_glob, save_config, Collection, SourceConfig, ValidationError};
+use crate::config::{
+    compile_glob, save_config, Collection, FooterLink, SiteConfig, SourceConfig, ValidationError,
+};
 use crate::manifest::{Manifest, ManifestEntry};
 use crate::sync::{
     schedule_source, stop_source, sync_once, unschedule_source, AppState, SourceState,
@@ -36,6 +38,7 @@ pub fn api_router() -> Router<Arc<AppState>> {
         .route("/sources/{id}/sync", post(sync_source))
         .route("/sources/{id}/enabled", post(set_enabled))
         .route("/sources/test", post(test_source))
+        .route("/site", get(get_site).put(put_site))
         .route("/content/manifest", get(get_manifest))
         .route("/content/file", get(get_file))
 }
@@ -371,6 +374,68 @@ async fn get_manifest(State(state): State<Arc<AppState>>) -> Response {
         }
     };
     Json(m).into_response()
+}
+
+// ---- /api/site：站点展示配置（状态栏外链）----
+
+async fn get_site(State(state): State<Arc<AppState>>) -> Response {
+    let site = state.config.read().await.site.clone();
+    Json(site).into_response()
+}
+
+#[derive(Deserialize)]
+struct SiteInput {
+    footer_links: Vec<FooterLinkInput>,
+}
+
+#[derive(Deserialize)]
+struct FooterLinkInput {
+    #[serde(default)]
+    id: String,
+    label: String,
+    url: String,
+}
+
+/// 校验并落盘站点配置。规则：label 非空、url 必须 http(s) 开头、≤10 条；
+/// id 缺省由 label+url 派生（稳定幂等）。
+async fn put_site(State(state): State<Arc<AppState>>, Json(input): Json<SiteInput>) -> Response {
+    if input.footer_links.len() > 10 {
+        return bad_request("外链数量上限 10 条");
+    }
+    let mut links = Vec::with_capacity(input.footer_links.len());
+    for l in &input.footer_links {
+        let label = l.label.trim().to_string();
+        if label.is_empty() {
+            return bad_request("label 不能为空");
+        }
+        if !(l.url.starts_with("http://") || l.url.starts_with("https://")) {
+            return bad_request(format!("url 必须以 http(s):// 开头：{}", l.url));
+        }
+        let id = if l.id.trim().is_empty() {
+            SourceConfig::derive_id("link", &label, "", &l.url)
+        } else {
+            l.id.trim().to_string()
+        };
+        links.push(FooterLink {
+            id,
+            label,
+            url: l.url.trim().to_string(),
+        });
+    }
+    {
+        let mut config = state.config.write().await;
+        config.site = SiteConfig {
+            footer_links: links.clone(),
+        };
+        if let Err(e) = save_config(&state.data_dir.join("config.toml"), &config) {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": format!("配置落盘失败: {e}") })),
+            )
+                .into_response();
+        }
+    }
+    Json(json!({ "ok": true, "footer_links": links })).into_response()
 }
 
 #[derive(Deserialize)]

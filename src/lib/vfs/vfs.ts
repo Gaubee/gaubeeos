@@ -17,15 +17,7 @@
 import { browser } from "$app/environment";
 import { accountService } from "$lib/apps/builtin/account/service";
 import { getFs, type ZenFs } from "$lib/fs/zenfs-instance";
-import {
-  BRANCH,
-  OWNER,
-  REPO,
-  commitChanges,
-  fetchTree,
-  getFileText,
-  type GhTreeEntry,
-} from "$lib/github/client";
+import { commitChanges, fetchTree, getFileText, type GhTreeEntry } from "$lib/github/client";
 import { NoChangesError } from "$lib/os/services";
 import {
   metaAll,
@@ -340,7 +332,7 @@ export class Vfs {
       sha: n.sha,
     }));
 
-    const sha = await commitChanges(message, changes, { branch: BRANCH });
+    const sha = await commitChanges(message, changes);
 
     // commit 成功：清除 dirty 状态与 base 快照
     for (const node of dirty) {
@@ -431,4 +423,3 @@ function dirname(absPath: string): string {
 export const vfs = new Vfs();
 
 // 导出仓库信息（视图/未来 bash 需要）
-export { OWNER, REPO, BRANCH };

@@ -1,23 +1,39 @@
 import AboutSection from "$lib/apps/views/AboutSection.svelte";
-import { leafRoute } from "$lib/router";
+import { defineRoute } from "$lib/router";
 import Info from "@lucide/svelte/icons/info";
 import MoonIcon from "@lucide/svelte/icons/moon";
 import PaletteIcon from "@lucide/svelte/icons/palette";
-import Rss from "@lucide/svelte/icons/rss";
 /**
- * 设置应用（系统内置，不可卸载）。
+ * 设置应用（系统内置，不可卸载）—— macOS 式系统设置。
  *
- * 功能：系统设置、应用管理（安装/卸载应用）。
- * 设置面板入口通过 manifest.settingsSections 声明式注册（AppManager 投影）：
- * 本应用自身注册「内容源/外观/关于」面板；其它应用（如账户）各自声明自己的面板。
+ * 路由（2026-08-16 升级）：/app/settings（默认面板）+ /app/settings/:section
+ * （render 型面板深链子页，如 /app/settings/articles.sources）。
+ * 面板由各应用经 manifest.settingsSections 声明式注册（AppManager 投影联动），
+ * 本应用自身只注册 system 组：外观/状态栏/关于。
  */
+import PanelBottomIcon from "@lucide/svelte/icons/panel-bottom";
 import Settings from "@lucide/svelte/icons/settings";
 import { toggleMode } from "mode-watcher";
 import type { Component } from "svelte";
+import { z } from "zod";
 
 import type { AppEntry } from "../types";
 import AppearanceSection from "./appearance/AppearanceSection.svelte";
-import ContentSourceSection from "./content-source/ContentSourceSection.svelte";
+import StatusBarSection from "./settings-statusbar/StatusBarSection.svelte";
+
+export const settingsRoute = defineRoute({
+  id: "settings",
+  pattern: "",
+  component: () => import("$lib/views/SettingsView.svelte"),
+  children: [
+    defineRoute({
+      id: "settings.section",
+      pattern: ":section",
+      params: z.object({ section: z.string().min(1) }),
+      component: () => import("$lib/views/SettingsView.svelte"),
+    }),
+  ],
+});
 
 export const settingsApp: AppEntry = {
   manifest: {
@@ -30,35 +46,37 @@ export const settingsApp: AppEntry = {
       {
         pattern: "/app/settings",
         entry: true,
-        root: leafRoute("settings", () => import("$lib/views/SettingsView.svelte")),
+        root: settingsRoute,
       },
     ],
     vfsOwnership: [],
     settingsSections: [
-      // 内容源订阅：OS 内核的核心配置（文章/说说来自哪些 GitHub 仓库）
-      {
-        id: "content-source",
-        title: "内容源",
-        description: "订阅 GitHub 仓库作为文章/说说来源",
-        icon: Rss,
-        order: 0,
-        render: ContentSourceSection,
-      },
-      // 外观是 OS 级偏好，归属设置应用（无独立 activity）
+      // ---- system 组：系统级偏好（设置应用自己注册）----
       {
         id: "appearance",
         title: "外观",
         description: "切换明暗主题",
         icon: PaletteIcon,
-        order: 1,
+        group: "system",
+        order: 10,
         render: AppearanceSection,
+      },
+      {
+        id: "statusbar",
+        title: "状态栏",
+        description: "底部状态栏外链（源码/备案号等）",
+        icon: PanelBottomIcon,
+        group: "system",
+        order: 20,
+        render: StatusBarSection,
       },
       {
         id: "about",
         title: "关于",
         description: "系统信息",
         icon: Info,
-        order: 100,
+        group: "system",
+        order: 90,
         render: AboutSection as unknown as Component,
       },
     ],
@@ -73,12 +91,12 @@ export const settingsApp: AppEntry = {
           { id: "settings-entry", title: "设置…", icon: Settings, link: "/app/settings" },
           { id: "theme-toggle", title: "切换主题", icon: MoonIcon, onClick: toggleMode },
           { id: "sep1", title: "-", separator: true },
-          { id: "about", title: "关于 GaubeeOS", icon: Info, link: "/app/settings" },
+          { id: "about", title: "关于 GaubeeOS", icon: Info, link: "/app/settings/about" },
         ],
       },
     ],
     description: "系统设置与偏好",
     longDescription:
-      "管理系统外观（明暗主题）、账户会话和系统信息。各应用通过声明式注册将自己的设置面板投影到这里。",
+      "macOS 式系统设置：系统级偏好（外观/状态栏/关于）+ 各应用声明式注册的设置面板（安装/卸载自动联动）。",
   },
 };
