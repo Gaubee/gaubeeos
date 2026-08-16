@@ -89,12 +89,72 @@ pub struct FooterLink {
     pub url: String,
 }
 
-/// 站点展示配置（部署者身份相关，全站生效）。
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+/// 站点展示配置（部署者身份 + SEO，全站生效）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SiteConfig {
     /// 底部状态栏外链列表（空 = 不渲染任何链接）。
     #[serde(default)]
     pub footer_links: Vec<FooterLink>,
+    /// 站点名（SEO title 模板后缀；空 = "GaubeeOS"）。
+    #[serde(default)]
+    pub site_name: String,
+    /// 站点默认描述（meta description / og:description 兜底）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// 站点绝对地址（https://example.com，无尾斜杠）。配置后启用
+    /// canonical / og:url / robots.txt Sitemap 行 / sitemap.xml 生成。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub base_url: Option<String>,
+    /// Open Graph 分享图（绝对 http(s) URL，可选）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub og_image: Option<String>,
+    /// 是否允许搜索引擎索引（false → robots.txt 全站 Disallow + noindex meta）。
+    #[serde(default = "default_true")]
+    pub allow_indexing: bool,
+}
+
+impl Default for SiteConfig {
+    fn default() -> Self {
+        Self {
+            footer_links: Vec::new(),
+            site_name: "GaubeeOS".to_string(),
+            description: None,
+            base_url: None,
+            og_image: None,
+            allow_indexing: true,
+        }
+    }
+}
+
+impl SiteConfig {
+    /// 生效站点名（空配置回退默认）。
+    pub fn name(&self) -> &str {
+        if self.site_name.trim().is_empty() {
+            "GaubeeOS"
+        } else {
+            &self.site_name
+        }
+    }
+
+    /// 校验 SEO 相关字段（base_url/og_image 须为 http(s) 且无尾斜杠）。
+    pub fn validate(&self) -> Result<(), ValidationError> {
+        for (field, url) in [("base_url", &self.base_url), ("og_image", &self.og_image)] {
+            if let Some(u) = url {
+                let u = u.trim();
+                if !(u.starts_with("http://") || u.starts_with("https://")) {
+                    return Err(ValidationError::BadSiteField(format!(
+                        "{field} 必须以 http(s):// 开头"
+                    )));
+                }
+                if u.ends_with('/') && field == "base_url" {
+                    return Err(ValidationError::BadSiteField(
+                        "base_url 不应以 / 结尾（canonical 拼接约定）".to_string(),
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 /// 全局配置。
@@ -134,6 +194,8 @@ pub enum ValidationError {
     BadExclude(String),
     #[error("interval 无法解析（支持 15m/1h/6h/24h 等）: {0}")]
     BadInterval(String),
+    #[error("站点配置字段不合法: {0}")]
+    BadSiteField(String),
 }
 
 impl SourceConfig {

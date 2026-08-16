@@ -43,6 +43,8 @@ pub struct ManifestEntry {
     pub date: Option<String>,
     pub updated: Option<String>,
     pub tags: Vec<String>,
+    /// SEO 描述（frontmatter description/excerpt 优先，回退正文前 160 字符粗清洗）。
+    pub description: Option<String>,
     pub bytes: u64,
     pub synced_at: String,
 }
@@ -62,6 +64,8 @@ pub struct FrontmatterMeta {
     pub date: Option<String>,
     pub updated: Option<String>,
     pub tags: Vec<String>,
+    /// frontmatter 显式描述（description 或 excerpt 字段）。
+    pub description: Option<String>,
 }
 
 /// 从 markdown 抽取最小 frontmatter（容忍各种写法，抽取不到就留 None）。
@@ -72,6 +76,7 @@ pub struct FrontmatterMeta {
 /// - `tags: [a, b]`（行内数组）或 `tags:` 后跟若干 `  - item`（块数组）
 pub fn extract_frontmatter(md: &str) -> FrontmatterMeta {
     let mut meta = FrontmatterMeta::default();
+    // description 供 SEO meta 使用（frontmatter 显式声明优先；无则在构建 entry 时回退正文粗清洗）
     let mut lines = md.lines();
     if lines.next().map(str::trim) != Some("---") {
         return meta;
@@ -97,6 +102,11 @@ pub fn extract_frontmatter(md: &str) -> FrontmatterMeta {
             "title" => meta.title = Some(unquote(value.trim())),
             "date" => meta.date = Some(unquote(value.trim())),
             "updated" => meta.updated = Some(unquote(value.trim())),
+            "description" | "excerpt" => {
+                if meta.description.is_none() {
+                    meta.description = Some(unquote(value.trim()));
+                }
+            }
             "tags" => {
                 let v = value.trim();
                 if let Some(inner) = v.strip_prefix('[').and_then(|s| s.strip_suffix(']')) {
@@ -153,6 +163,10 @@ pub fn build_entry(
         .unwrap_or(&filename)
         .to_string();
     let meta = extract_frontmatter(content);
+    let description = meta
+        .description
+        .filter(|d| !d.trim().is_empty())
+        .or_else(|| Some(excerpt_from_body(body_of(content))));
     ManifestEntry {
         uid: format!("{}:{path}", cfg.id),
         source: SourceRef {
@@ -170,9 +184,27 @@ pub fn build_entry(
         date: meta.date,
         updated: meta.updated,
         tags: meta.tags,
+        description,
         bytes: content.len() as u64,
         synced_at: synced_at.to_string(),
     }
+}
+
+/// 从正文提取 SEO 描述：跳过 frontmatter，去 markdown 标记符号，截前 160 字符。
+pub fn excerpt_from_body(md: &str) -> String {
+    let body = body_of(md);
+    let mut out = String::new();
+    for ch in body.chars() {
+        if out.chars().count() >= 160 {
+            break;
+        }
+        // 粗清洗：跳过常见 markdown 标记字符
+        if "#*`>~[]()|_!".contains(ch) {
+            continue;
+        }
+        out.push(ch);
+    }
+    out.trim().to_string()
 }
 
 /// 聚合多源条目 → 全局清单（按 collection 稳定分组，各自 date 降序尽力而为：
@@ -215,6 +247,22 @@ pub fn rebuild_manifest(
     save_manifest(&data_dir.join("cache").join("manifest.json"), &m)
 }
 
+/// 取 frontmatter 之后的正文。
+fn body_of(md: &str) -> &str {
+    let trimmed = md.trim_start();
+    let Some(rest) = trimmed.strip_prefix("---") else {
+        return md;
+    };
+    let rest = rest.strip_prefix('\n').unwrap_or(rest);
+    match rest.find("\n---") {
+        Some(pos) => {
+            let after = &rest[pos + 4..];
+            after.strip_prefix('\n').unwrap_or(after)
+        }
+        None => md,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -241,6 +289,50 @@ mod tests {
         assert_eq!(m.title.as_deref(), Some("块数组"));
         assert_eq!(m.updated.as_deref(), Some("2026-01-02"));
         assert_eq!(m.tags, vec!["a", "b c"]);
+    }
+
+    #[test]
+    fn body_of_splits_frontmatter() {
+        assert_eq!(body_of("---\ntitle: x\n---\nhello"), "hello");
+        assert_eq!(body_of("no frontmatter"), "no frontmatter");
+        assert_eq!(body_of("---\nbroken"), "---\nbroken");
+    }
+
+    #[test]
+    fn excerpt_cleans_and_truncates() {
+        let md = "---\ntitle: t\n---\n# Heading **bold** and `code`!\n";
+        let e = excerpt_from_body(md);
+        assert!(!e.contains('#') && !e.contains('*') && !e.contains('`'));
+        assert!(e.contains("Heading"));
+        let long = format!("---\n---\n{}", "字".repeat(300));
+        assert_eq!(excerpt_from_body(&long).chars().count(), 160);
+    }
+
+    #[test]
+    fn description_from_frontmatter_preferred() {
+        let cfg = crate::config::SourceConfig {
+            id: "s".into(),
+            name: None,
+            owner: "o".into(),
+            repo: "r".into(),
+            git_ref: String::new(),
+            collection: crate::config::Collection::Articles,
+            include: "**/*.md".into(),
+            exclude: None,
+            slug_prefix: None,
+            interval: "1h".into(),
+            enabled: true,
+        };
+        let e = build_entry(
+            &cfg,
+            "main",
+            "a.md",
+            "---\ntitle: T\ndescription: 显式描述\n---\n正文内容",
+            "t0",
+        );
+        assert_eq!(e.description.as_deref(), Some("显式描述"));
+        let e2 = build_entry(&cfg, "main", "a.md", "---\ntitle: T\n---\n正文内容", "t0");
+        assert_eq!(e2.description.as_deref(), Some("正文内容"));
     }
 
     #[test]
@@ -297,6 +389,7 @@ mod tests {
             date: date.map(str::to_string),
             updated: None,
             tags: vec![],
+            description: None,
             bytes: 1,
             synced_at: String::new(),
         };

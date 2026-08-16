@@ -8,7 +8,7 @@
  */
 
 // 契约与工厂
-export type { RouteContract, ErasedRouteContract } from "./contract";
+export type { RouteContract, ErasedRouteContract, RouteSEO } from "./contract";
 export { defineRoute, registerActivityRoot } from "./define-route";
 export type { DefineRouteConfig } from "./define-route";
 export { defineActivity } from "./define-activity";

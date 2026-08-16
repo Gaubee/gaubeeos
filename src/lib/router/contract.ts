@@ -23,6 +23,19 @@ import type { Component } from "svelte";
 import type { ZodSchema } from "zod";
 
 /**
+ * 路由级 SEO 声明（App 级 SEO，2026-08-16）。
+ * 静态值在此声明；动态值（如文章标题）由视图组件运行时 setSEO 覆盖。
+ */
+export interface RouteSEO {
+  /** 页面标题（不含站点名后缀，模板见 seoStore）。 */
+  title?: string;
+  /** 页面描述（缺省回退站点默认描述）。 */
+  description?: string;
+  /** 不索引本路由（渲染 noindex meta）。 */
+  noindex?: boolean;
+}
+
+/**
  * 一个路由节点的声明式契约。
  *
  * 字段全部 readonly，构造后不可变。defineRoute 是唯一构造入口。
@@ -39,6 +52,8 @@ export interface RouteContract<
   readonly params?: P;
   /** search 参数 schema（zod）。undefined 表示无 query 参数。 */
   readonly search?: S;
+  /** 路由级 SEO 声明（静态值）。 */
+  readonly seo?: RouteSEO;
   /** 视图懒加载器（与旧 ViewLoader 同语义）。 */
   readonly component: () => Promise<{ default: Component }>;
   /** 嵌套子路由。 */

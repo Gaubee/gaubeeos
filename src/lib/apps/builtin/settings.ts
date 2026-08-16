@@ -24,11 +24,13 @@ import StatusBarSection from "./settings-statusbar/StatusBarSection.svelte";
 export const settingsRoute = defineRoute({
   id: "settings",
   pattern: "",
+  seo: { title: "设置" },
   component: () => import("$lib/views/SettingsView.svelte"),
   children: [
     defineRoute({
       id: "settings.section",
       pattern: ":section",
+      seo: { title: "设置" },
       params: z.object({ section: z.string().min(1) }),
       component: () => import("$lib/views/SettingsView.svelte"),
     }),
@@ -62,9 +64,9 @@ export const settingsApp: AppEntry = {
         render: AppearanceSection,
       },
       {
-        id: "statusbar",
-        title: "状态栏",
-        description: "底部状态栏外链（源码/备案号等）",
+        id: "site",
+        title: "站点",
+        description: "站点信息（SEO）与底部状态栏外链",
         icon: PanelBottomIcon,
         group: "system",
         order: 20,

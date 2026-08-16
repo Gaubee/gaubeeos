@@ -18,6 +18,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use axum::extract::State;
 use axum::http::{header, HeaderValue, Request, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
@@ -31,6 +32,7 @@ mod api;
 mod config;
 mod github;
 mod manifest;
+mod seo;
 mod sync;
 
 use sync::AppState;
@@ -99,14 +101,45 @@ async fn async_main() {
     // SSG 双格式与 SPA 兜底收口到 fallback 三级查找。
     // 注意用 .fallback() 而非 .not_found_service()：后者把响应状态码强制改 404。
     let root_for_log = root.display().to_string();
+    let state_for_fallback = Arc::clone(&state);
     let serve_dir = ServeDir::new(&root)
         .append_index_html_on_directories(false)
         .fallback(tower::service_fn(move |req: Request<axum::body::Body>| {
-            fallback(req, root.clone())
+            fallback(req, root.clone(), Arc::clone(&state_for_fallback))
         }));
 
     let app = Router::new()
         .route("/healthz", get(|| async { "ok" }))
+        .route(
+            "/robots.txt",
+            get(|State(app): State<Arc<AppState>>| async move {
+                let site = app.config.read().await.site.clone();
+                (
+                    [(header::CONTENT_TYPE, "text/plain; charset=utf-8")],
+                    seo::render_robots(&site),
+                )
+                    .into_response()
+            }),
+        )
+        .route(
+            "/sitemap.xml",
+            get(|State(app): State<Arc<AppState>>| async move {
+                let site = app.config.read().await.site.clone();
+                let entries = entries_snapshot(&app).await;
+                match seo::render_sitemap(&site, &entries) {
+                    Some(xml) => (
+                        [(header::CONTENT_TYPE, "application/xml; charset=utf-8")],
+                        xml,
+                    )
+                        .into_response(),
+                    None => (
+                        StatusCode::NOT_FOUND,
+                        "sitemap 未启用：请在 设置 → 站点 配置 base_url",
+                    )
+                        .into_response(),
+                }
+            }),
+        )
         .nest("/api", api::api_router())
         .fallback_service(serve_dir)
         .layer(middleware::from_fn(cache_and_mime))
@@ -128,15 +161,31 @@ async fn async_main() {
 }
 
 /// 三级 fallback（`$uri` 精确命中由 ServeDir 完成）：
+/// 0. `/article/{collection}/{slug}`（HTML 请求）→ SEO meta shell（SPA 壳变换）
 /// 1. `{path}.html` —— 扁平 SSG 格式
 /// 2. `{path}/index.html` —— 目录式（含 `/` 根）
 /// 3. `{root}/index.html` —— SPA fallback
 async fn fallback(
     req: Request<axum::body::Body>,
     root: PathBuf,
+    app: Arc<AppState>,
 ) -> Result<Response, std::convert::Infallible> {
     let raw = req.uri().path().to_owned();
     let path = raw.trim_matches('/').to_owned();
+
+    // SEO meta shell：文章详情路由（零 UA 嗅探——人类与爬虫同 HTML）
+    if req.method() == axum::http::Method::GET
+        && (req
+            .headers()
+            .get("accept")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("")
+            .contains("text/html"))
+    {
+        if let Some(resp) = try_article_shell(&raw, &root, &app).await {
+            return Ok(resp);
+        }
+    }
 
     if !path.is_empty() {
         let flat = format!("{path}.html");
@@ -158,6 +207,51 @@ async fn fallback(
         Ok(resp) => Ok(resp.into_response()),
         Err(_) => Ok(StatusCode::NOT_FOUND.into_response()),
     }
+}
+
+/// 清单条目快照（runtime 聚合）。
+async fn entries_snapshot(app: &Arc<AppState>) -> Vec<manifest::ManifestEntry> {
+    let runtime = app.runtime.lock().await;
+    runtime
+        .values()
+        .flat_map(|rt| rt.state.entries.clone())
+        .collect()
+}
+
+/// `/article/{collection}/{slug}` → SEO meta shell。
+/// 命中（slug = `{slug_prefix}{slug}`）→ index.html 变换返回；未命中 → None（走 SPA 兜底）。
+async fn try_article_shell(
+    raw_path: &str,
+    root: &std::path::Path,
+    app: &Arc<AppState>,
+) -> Option<Response> {
+    // 解析 /article/{collection}/{slug}
+    let rest = raw_path.strip_prefix("/article/")?;
+    let (collection, url_slug) = rest.split_once('/')?;
+    if collection.is_empty() || url_slug.is_empty() || url_slug.contains('/') {
+        return None;
+    }
+    // 查清单条目
+    let entries = entries_snapshot(app).await;
+    let entry = entries
+        .iter()
+        .find(|e| e.collection == collection && format!("{}{}", e.slug_prefix, e.slug) == url_slug)?
+        .clone();
+    // 读正文缓存
+    let body_path = app
+        .data_dir
+        .join("cache")
+        .join("sources")
+        .join(&entry.source.id)
+        .join(&entry.path);
+    let body_md = tokio::fs::read_to_string(&body_path)
+        .await
+        .unwrap_or_default();
+    // SPA 壳
+    let index_html = String::from_utf8(read_file(root, "index.html").await?).ok()?;
+    let site = app.config.read().await.site.clone();
+    let html = seo::render_article_shell(&index_html, url_slug, &entry, &body_md, &site);
+    Some(([(header::CONTENT_TYPE, "text/html; charset=utf-8")], html).into_response())
 }
 
 /// 读取 root 下相对路径文件；ParentDir / 绝对路径段直接拒绝（防穿越）。

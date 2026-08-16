@@ -24,7 +24,7 @@
 import type { Component } from "svelte";
 import type { ZodSchema } from "zod";
 
-import type { ErasedRouteContract, RouteContract } from "./contract";
+import type { ErasedRouteContract, RouteContract, RouteSEO } from "./contract";
 import { routeRegistry } from "./registry";
 
 /** defineRoute 配置。 */
@@ -40,6 +40,8 @@ export interface DefineRouteConfig<
   params?: P;
   /** search 参数 schema。 */
   search?: S;
+  /** 路由级 SEO 声明（静态值）。 */
+  seo?: RouteSEO;
   /** 视图懒加载器。 */
   component: () => Promise<{ default: Component }>;
   /** 嵌套子路由。 */
@@ -70,6 +72,7 @@ export function defineRoute<
     pattern: config.pattern,
     params: config.params,
     search: config.search,
+    seo: config.seo,
     component: config.component,
     children: config.children,
   };

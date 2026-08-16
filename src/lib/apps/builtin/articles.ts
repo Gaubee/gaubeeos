@@ -31,6 +31,7 @@ import TagsWidget from "../widget/TagsWidget.svelte";
 const articleDetailRoute = defineRoute({
   id: "articles.detail",
   pattern: ":collection/:stem",
+  seo: { description: "文章详情" },
   params: z.object({
     collection: z.enum(["articles", "events"]),
     stem: z.string().min(1),
@@ -44,6 +45,7 @@ const articleDetailRoute = defineRoute({
 const tagsRoute = defineRoute({
   id: "articles.tags",
   pattern: "",
+  seo: { title: "标签" },
   component: () => import("$lib/views/TagsView.svelte"),
   children: [
     defineRoute({
@@ -65,7 +67,12 @@ export const articlesApp = defineApp({
     {
       pattern: "/app/articles",
       entry: true,
-      root: leafRoute("articles", () => import("$lib/apps/views/ArticlesView.svelte")),
+      root: defineRoute({
+        id: "articles.list",
+        pattern: "",
+        seo: { title: "文章", description: "按年份浏览订阅的文章" },
+        component: () => import("$lib/apps/views/ArticlesView.svelte"),
+      }),
     },
     // 文章详情：/article/{collection}/{stem}。
     // 新方案：ActivityRouter 通过 useParams 把 collection/stem 注入 ArticleDetailView，

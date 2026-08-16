@@ -20,6 +20,7 @@ import type { AppEntry } from "../types";
 export const appStoreRoute = defineRoute({
   id: "app-store",
   pattern: "",
+  seo: { title: "应用市场", description: "浏览、安装和卸载应用" },
   component: () => import("$lib/apps/views/AppStoreView.svelte"),
   children: [
     /** 应用详情页（appId 单段标识符）。 */

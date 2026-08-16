@@ -25,6 +25,7 @@
   import { navStore } from '$lib/nav/nav.svelte'
   import { gaubeeos } from '$lib/os/services'
   import { siteStore } from '$lib/site/site-store.svelte'
+  import { seoStore } from '$lib/seo/head.svelte'
   import AreaOutlet from '$lib/components/layout/AreaOutlet.svelte'
   import DesktopSidebar from '$lib/components/layout/DesktopSidebar.svelte'
   import BottomAreaRouter from '$lib/components/layout/BottomAreaRouter.svelte'
@@ -106,7 +107,22 @@
 </script>
 
 <svelte:head>
-  <title>GaubeeOS</title>
+  <title>{seoStore.fullTitle}</title>
+  {#if seoStore.effectiveDescription}
+    <meta name="description" content={seoStore.effectiveDescription} />
+  {/if}
+  <meta name="robots" content={seoStore.robotsContent} />
+  <meta property="og:title" content={seoStore.fullTitle} />
+  <meta property="og:description" content={seoStore.effectiveDescription} />
+  <meta property="og:type" content={seoStore.current.ogType} />
+  <meta property="og:site_name" content={siteStore.siteName} />
+  {#if siteStore.site.og_image}
+    <meta property="og:image" content={siteStore.site.og_image!} />
+  {/if}
+  {#if seoStore.canonical}
+    <link rel="canonical" href={seoStore.canonical} />
+    <meta property="og:url" content={seoStore.canonical} />
+  {/if}
 </svelte:head>
 
 <!-- @container/app：容器查询上下文。系统背景由 desktopService 提供（桌面背景上移为系统级）。 -->

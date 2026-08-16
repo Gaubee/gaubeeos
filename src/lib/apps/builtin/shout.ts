@@ -15,7 +15,7 @@ import ShoutSourcesSection from "$lib/apps/views/settings/ShoutSourcesSection.sv
 import { searchIndexProcessor } from "$lib/content-pipeline/processors/search-index";
 import { tagsProcessor } from "$lib/content-pipeline/processors/tags";
 import { eventsSource } from "$lib/content-pipeline/sources/events";
-import { leafRoute } from "$lib/router";
+import { defineRoute } from "$lib/router";
 import { createRuntimeSearchService } from "$lib/search/runtime-service";
 import MessageSquare from "@lucide/svelte/icons/message-square";
 
@@ -33,7 +33,12 @@ export const shoutApp: AppEntry = {
       {
         pattern: "/app/shout",
         entry: true,
-        root: leafRoute("shout", () => import("$lib/apps/views/ShoutView.svelte")),
+        root: defineRoute({
+          id: "shout.list",
+          pattern: "",
+          seo: { title: "说说", description: "订阅的碎碎念时间线" },
+          component: () => import("$lib/apps/views/ShoutView.svelte"),
+        }),
       },
     ],
     vfsOwnership: ["src/content/events/"],

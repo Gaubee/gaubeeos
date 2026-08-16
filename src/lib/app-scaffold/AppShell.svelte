@@ -28,8 +28,11 @@
     app,
     activity,
     location,
+    active = true,
   }: {
     app: AppManifest;
+    /** 是否激活（AreaOutlet 注入；透传 ActivityRouter 供 SEO Bridge 守卫）。 */
+    active?: boolean;
     /** 当前激活的 Activity（AreaOutlet 从 manifest.activities 中匹配得到）。 */
     activity: AppActivity;
     /** 当前 area 的 location（main/bottom/pop 之一）。 */
@@ -55,7 +58,7 @@
 </script>
 
 <div class="app-shell">
-  <ActivityRouter {activity} {location} />
+  <ActivityRouter {activity} {location} {active} />
   <!-- 应用内浮层挂载点：bits-ui Portal 默认挂这里，不逃逸到 body -->
   <div class="app-portal-root" bind:this={portalRoot}></div>
 </div>

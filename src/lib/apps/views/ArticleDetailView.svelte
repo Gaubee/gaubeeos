@@ -6,6 +6,7 @@
 -->
 <script lang="ts">
   import { contentSourceStore } from '$lib/content-source/store.svelte'
+  import { seoStore } from '$lib/seo/head.svelte'
   import { contentQuery } from '$lib/content-pipeline/query.svelte'
   import type { ContentEntry } from '$lib/content-pipeline/types'
   import { navController } from '$lib/nav/nav-controller-instance'
@@ -61,6 +62,10 @@
     void contentQuery.version
     if (!target) return null
     return contentQuery.findPost(target.collection, target.stem)
+  })
+  // App 级 SEO：文章标题/摘要动态覆盖（路由切换由 SeoRouteBridge 复位）
+  $effect(() => {
+    if (post) seoStore.setSEO({ title: post.title, description: post.excerpt, ogType: 'article' })
   })
 
   /** 同集合所有文章（按 date 降序）。 */

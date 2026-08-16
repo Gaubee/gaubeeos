@@ -20,6 +20,7 @@
 -->
 <script lang="ts">
   import type { Component } from "svelte";
+import SeoRouteBridge from "$lib/seo/SeoRouteBridge.svelte"
   import { untrack } from "svelte";
   import type { HistoryLocation } from "$lib/nav/controller";
   import type { AppActivity } from "$lib/apps/types";
@@ -32,9 +33,12 @@
   let {
     activity,
     location,
+    active = true,
   }: {
     activity: AppActivity;
     location: HistoryLocation;
+    /** 是否激活（后台保活 shell 为 false；SEO Bridge 据此跳过）。 */
+    active?: boolean;
   } = $props();
 
   // root 在 AppActivity 类型层带泛型 P/S，运行时擦除后是 ErasedRouteContract。
@@ -149,6 +153,7 @@
   {#if Comp}
     <!-- key 绑定 RouteId，切换 Route 时 Svelte 会替换组件实例（每个 Route 独立 state） -->
     <div class="activity-route-outlet" data-route-id={activeLeaf.route.id}>
+      <SeoRouteBridge {active} />
       <Comp />
     </div>
   {:else}

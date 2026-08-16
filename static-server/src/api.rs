@@ -386,6 +386,16 @@ async fn get_site(State(state): State<Arc<AppState>>) -> Response {
 #[derive(Deserialize)]
 struct SiteInput {
     footer_links: Vec<FooterLinkInput>,
+    #[serde(default)]
+    site_name: String,
+    #[serde(default)]
+    description: Option<String>,
+    #[serde(default)]
+    base_url: Option<String>,
+    #[serde(default)]
+    og_image: Option<String>,
+    #[serde(default = "default_true")]
+    allow_indexing: bool,
 }
 
 #[derive(Deserialize)]
@@ -422,11 +432,38 @@ async fn put_site(State(state): State<Arc<AppState>>, Json(input): Json<SiteInpu
             url: l.url.trim().to_string(),
         });
     }
+    let base_url = input
+        .base_url
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string);
+    let og_image = input
+        .og_image
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string);
+    let description = input
+        .description
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string);
+    let next_site = SiteConfig {
+        footer_links: links.clone(),
+        site_name: input.site_name.trim().to_string(),
+        description,
+        base_url,
+        og_image,
+        allow_indexing: input.allow_indexing,
+    };
+    if let Err(e) = next_site.validate() {
+        return bad_request(e);
+    }
     {
         let mut config = state.config.write().await;
-        config.site = SiteConfig {
-            footer_links: links.clone(),
-        };
+        config.site = next_site.clone();
         if let Err(e) = save_config(&state.data_dir.join("config.toml"), &config) {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
