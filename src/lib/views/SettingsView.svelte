@@ -85,7 +85,8 @@
             <!-- svelte-ignore ownership_invalid_mutation -->
             <section.icon class="text-muted-foreground size-4 shrink-0" />
           {/if}
-          <span class="truncate text-sm">{section.title}</span>
+          <!-- 侧边栏显示应用名（如「文章」「账户」）；面板标题保留具体设置名（如「文章源」） -->
+          <span class="truncate text-sm">{section.app ?? section.title}</span>
         </button>
       {/each}
       {#if appSections.length === 0}

@@ -32,6 +32,8 @@ export interface SettingsSection {
   icon?: Component;
   /** 分组（默认 'app'）。 */
   group?: SettingsSectionGroup;
+  /** 声明方应用的显示名（AppManager 投影时注入；侧边栏应用组用它作条目标签）。 */
+  app?: string;
   /** 组内渲染顺序，越小越靠前（默认按注册顺序）。 */
   order?: number;
   /** 点击后导航到的深链接路径（优先于 render，不产生设置内子页）。 */

@@ -1,3 +1,4 @@
+import AccountView from "$lib/apps/views/AccountView.svelte";
 import { leafRoute } from "$lib/router";
 import LogInIcon from "@lucide/svelte/icons/log-in";
 import LogOutIcon from "@lucide/svelte/icons/log-out";
@@ -38,7 +39,8 @@ export const accountApp: AppEntry = {
     services: {
       account: () => accountService,
     },
-    // 声明式设置面板（点击跳转到 /app/account）
+    // 声明式设置面板（就地渲染 AccountView，深链 /app/settings/account；
+    // /app/account 深链接保留——鉴权失败跳转流 handlePublishError 仍指向它）
     settingsSections: [
       {
         id: "account",
@@ -46,7 +48,7 @@ export const accountApp: AppEntry = {
         description: "登录、管理账户与会话",
         icon: User,
         order: 0,
-        link: "/app/account",
+        render: AccountView,
       },
     ],
     // 系统菜单：登录/退出登录/账户设置

@@ -360,7 +360,8 @@ class AppManager {
   private registerSettingsSections(manifest: AppManifest): void {
     if (!manifest.settingsSections) return;
     for (const section of manifest.settingsSections) {
-      settingsSectionsRegistry.register(section);
+      // 注入声明方应用名：设置侧边栏应用组显示应用名（如「文章」），面板标题保留具体标题（如「文章源」）
+      settingsSectionsRegistry.register({ ...section, app: manifest.name });
     }
   }
 
