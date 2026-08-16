@@ -4,13 +4,16 @@
 	正交意图：
 	1. 原始需求（2026-07-23 任务栏模型）：任务栏=打开+固定的应用，默认空。
 	2. 顶部固定"桌面入口"（左栏时桌面在顶部）：点击回桌面（location→/）。
-	3. main/bottom 区 AreaNav：渲染打开的应用（navState.mainTabs/bottomTabs）。
-	4. pop 入口（搜索/通知）：后台服务快捷入口。
+	3. main/bottom 区 AreaNav：渲染打开的应用（navState.mainTabs/bottomTabs）；
+	   main 区底部对齐（2026-08-17），与底部 LOGO/底栏形成视觉锚。
+	4. 底部 LOGO 系统菜单（2026-08-17 从顶部状态栏迁入；苹果菜单）。
+	5. pop 入口（搜索/通知）：顶部状态栏 tray 区。
 -->
 <script lang="ts">
   import { navController } from '$lib/nav/nav-controller-instance'
   import { navStore } from '$lib/nav/nav.svelte'
   import AreaNav from './AreaNav.svelte'
+  import SystemMenuButton from './SystemMenuButton.svelte'
   import PanelLeftIcon from '@lucide/svelte/icons/panel-left'
   import LayoutGridIcon from '@lucide/svelte/icons/layout-grid'
 
@@ -76,15 +79,15 @@
     {/if}
   </div>
 
-  <!-- main 区任务栏：打开 + 固定的应用（默认空）。
-       flex-1 撑满剩余高度，让拖拽落区覆盖整个 main 区（拖入更宽松）。 -->
-  <div class="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
+  <!-- main 区任务栏：打开 + 固定的应用（默认空），底部对齐。
+       外层 flex-1 撑满（拖拽落区覆盖整个 main 区），内容 justify-end 贴底。 -->
+  <div class="flex min-h-0 flex-1 flex-col justify-end overflow-y-auto overflow-x-hidden">
     {#if !collapsed && navState.mainTabs.length === 0}
       <div class="text-muted-foreground px-2 py-4 text-center text-xs">
         打开应用后会出现在这里
       </div>
     {/if}
-    <AreaNav area="main" {collapsed} class="flex-1" />
+    <AreaNav area="main" {collapsed} />
   </div>
 
   <!-- bottom 区任务栏 -->
@@ -97,5 +100,10 @@
     <AreaNav area="bottom" {collapsed} />
   </div>
 
-  <!-- 注意：搜索/通知等 pop 入口已移至顶部状态栏 tray 区，Dock 底部不再显示 -->
+  <!-- LOGO 系统菜单（2026-08-17 从顶部状态栏迁入）：侧栏最底部锚点 -->
+  <div class="mt-2 flex {collapsed ? 'justify-center' : 'justify-center'} border-t pt-2">
+    <SystemMenuButton />
+  </div>
+
+  <!-- 注意：搜索/通知等 pop 入口在顶部状态栏 tray 区 -->
 </aside>

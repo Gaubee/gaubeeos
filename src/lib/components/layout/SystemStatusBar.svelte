@@ -22,7 +22,6 @@
   import MinusIcon from '@lucide/svelte/icons/minus'
   import XIcon from '@lucide/svelte/icons/x'
   // 用 favicon-32.png（用户提供的 logo 处理后的小尺寸版本），状态栏小尺寸清晰
-  const logoUrl = '/favicon-32.png'
 
   const navState = $derived(navStore.current)
   const isLoading = $derived(appLoadStore.isLoading)
@@ -39,7 +38,6 @@
   const onDesktop = $derived(navState.mainLocation.pathname === '/')
 
   // 三类菜单（按 placement 过滤）
-  const systemMenus = $derived(appMenuRegistry.forPlacement('system'))
   const appMenus = $derived(appMenuRegistry.forPlacement('app', activeAppId ?? undefined))
   const trayMenus = $derived(appMenuRegistry.forPlacement('tray'))
   const desktopMenus = $derived(appMenuRegistry.forPlacement('desktop'))
@@ -62,19 +60,6 @@
     }
   }
 
-  /** 菜单项可见性过滤 + 分隔符归一：visible 求值、连续分隔符合并、首尾分隔符裁剪。 */
-  function visibleMenuItems(items: AppMenuItem[]): AppMenuItem[] {
-    const out: AppMenuItem[] = []
-    for (const it of items) {
-      const visible = it.separator || !it.visible || it.visible()
-      if (!visible) continue
-      if (it.separator && (out.length === 0 || out[out.length - 1].separator)) continue
-      out.push(it)
-    }
-    while (out.length && out[out.length - 1].separator) out.pop()
-    return out
-  }
-
   // 最小化 = 显示桌面（保留应用在任务栏）
   function minimize() {
     navController.navigateMain('/')
@@ -88,37 +73,11 @@
 <header
   class="system-statusbar glass-surface sticky top-0 z-[var(--z-shell-base)] flex h-9 shrink-0 items-center gap-1 px-2 text-xs relative"
 >
-  <!-- 左：GaubeeOS LOGO 系统菜单（苹果菜单） -->
-  {#if systemMenus.length > 0}
-    <DropdownMenu.Root>
-      <DropdownMenu.Trigger class="flex items-center rounded-md px-1 py-0.5 transition-colors hover:bg-accent">
-        <img src={logoUrl} alt="GaubeeOS" class="size-5 shrink-0 rounded-md" />
-      </DropdownMenu.Trigger>
-      <DropdownMenu.Content align="start">
-        <!-- 各应用注册的 system 菜单拍平为一列（组间自动分隔线），统一做可见性过滤与分隔符归一 -->
-        {@const items = systemMenus.flatMap((m) => m.items ?? [])}
-        {@const visibleItems = visibleMenuItems(items)}
-        {#each visibleItems as item, ii (item.id)}
-          {#if item.separator}
-            {#if ii > 0 && ii < visibleItems.length - 1}
-              <DropdownMenu.Separator />
-            {/if}
-          {:else}
-            <DropdownMenu.Item onclick={() => runItem(item)} disabled={item.disabled}>
-              {#if item.icon}
-                {@const Icon = item.icon}
-                <Icon class="size-4" />
-              {/if}
-              <span>{item.title}</span>
-            </DropdownMenu.Item>
-          {/if}
-        {/each}
-      </DropdownMenu.Content>
-    </DropdownMenu.Root>
-  {/if}
-
-  <!-- 当前场景名（桌面态：纯文字；应用态：应用菜单 trigger） -->
-  {#if activeApp && !onDesktop}
+  <!-- 当前场景名（桌面态：纯文字；应用态：应用菜单 trigger）——绝对居中（macOS 风格）。
+       pointer-events-none 让中间空区不挡 tray/其它点击，仅标题本身可交互。 -->
+  <div class="pointer-events-none absolute inset-x-0 flex justify-center">
+    <div class="pointer-events-auto flex min-w-0 justify-center">
+      {#if activeApp && !onDesktop}
     <DropdownMenu.Root>
       <DropdownMenu.Trigger class="flex max-w-[12rem] items-center gap-1 rounded-md px-1.5 py-0.5 font-semibold transition-colors hover:bg-accent">
         <span class="truncate">{activeApp.name}</span>
@@ -185,9 +144,11 @@
         {/each}
       </DropdownMenu.Content>
     </DropdownMenu.Root>
-  {:else}
-    <span class="px-1 font-semibold">桌面</span>
-  {/if}
+      {:else}
+        <span class="px-1 font-semibold">桌面</span>
+      {/if}
+    </div>
+  </div>
 
   <!-- 右：tray 快捷入口 -->
   <div class="ml-auto flex items-center gap-1">
