@@ -118,6 +118,32 @@ async fn async_main() {
     let app = Router::new()
         .route("/healthz", get(|| async { "ok" }))
         .route(
+            "/__dev_session",
+            get(|| async move {
+                // 开发调试入口（仅 DEV_SESSION_TOKEN 配置时生效）：
+                // 浏览器访问 /__dev_session 即可获得 manager 会话 cookie，
+                // 解决无 OAuth worker 的本地环境无法测试管理流的问题。生产勿配该 env。
+                match std::env::var("DEV_SESSION_TOKEN") {
+                    Ok(tok) if !tok.trim().is_empty() => (
+                        StatusCode::FOUND,
+                        [
+                            (
+                                header::SET_COOKIE,
+                                session::build_session_cookie(tok.trim()),
+                            ),
+                            (header::LOCATION, "/".to_string()),
+                        ],
+                    )
+                        .into_response(),
+                    _ => (
+                        StatusCode::NOT_FOUND,
+                        "DEV_SESSION_TOKEN 未配置（生产环境不应开启此入口）",
+                    )
+                        .into_response(),
+                }
+            }),
+        )
+        .route(
             "/robots.txt",
             get(|State(app): State<Arc<AppState>>| async move {
                 let site = app.config.read().await.site.clone();
