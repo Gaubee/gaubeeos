@@ -13,7 +13,6 @@
   import { navController } from '$lib/nav/nav-controller-instance'
   import { useParams } from '$lib/router'
   import { Button } from '$lib/components/ui/button'
-  import StoreIcon from '@lucide/svelte/icons/store'
   import ChevronRightIcon from '@lucide/svelte/icons/chevron-right'
   import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left'
   import SettingsIcon from '@lucide/svelte/icons/settings'
@@ -93,14 +92,6 @@
         <div class="text-muted-foreground px-2 py-2 text-xs">已安装应用暂无可配置项</div>
       {/if}
 
-      <div class="bg-border my-2 h-px" role="separator"></div>
-      <button
-        class="hover:bg-accent flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-left transition-colors"
-        onclick={() => navController.navigateMain('/app/store')}
-      >
-        <StoreIcon class="text-muted-foreground size-4 shrink-0" />
-        <span class="text-sm">应用市场</span>
-      </button>
     </nav>
 
     <!-- ============ 右：pane（桌面常驻；移动端仅子页态显示） ============ -->

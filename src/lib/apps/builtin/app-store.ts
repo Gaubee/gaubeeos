@@ -46,7 +46,8 @@ export const appStoreApp: AppEntry = {
         root: appStoreRoute,
       },
     ],
-    hiddenFromNav: true,
+    // 标准应用程序（2026-08-16）：不再 hiddenFromNav——打开后图标进左侧 Dock 任务栏，
+    // 桌面网格可见；设置侧边栏的固定入口已移除（市场不属于系统设置）。
     description: "安装与管理应用",
     longDescription: "浏览、安装和卸载应用。系统应用不可卸载，可安装应用可随时移除。",
   },
