@@ -50,8 +50,16 @@ export interface DesktopService extends AppService {
    * 避免 default 时毛玻璃透出 body 纯色导致文字不可读。
    */
   readonly isWallpaperActive: boolean;
-  /** 设置桌面背景并持久化。 */
+  /** 设置桌面背景并持久化（程序化调用语义）。UI 连续交互请用 previewBackground + commit。 */
   setBackground(bg: DesktopBackground): void;
+  /** 预览背景（不持久化）：$state 即时生效（layout 派生 CSS）。 */
+  previewBackground(bg: DesktopBackground): void;
+  /** 是否有未保存的预览变更。 */
+  readonly isDirty: boolean;
+  /** 提交当前值（一次持久化）。 */
+  commit(): void;
+  /** 放弃未保存的预览。 */
+  discard(): void;
   /** 重置为默认背景。 */
   reset(): void;
   /** 从站点层（managerStore ns=desktop）装载默认值（boot 调用；本地覆盖优先）。 */
@@ -85,6 +93,12 @@ class DesktopServiceImpl implements DesktopService {
   readonly appId = "desktop" as const;
 
   background = $state<DesktopBackground>(DEFAULT_BACKGROUND);
+  /** 已提交快照（dirty 判定基准；JSON 序列化比较，背景是纯数据）。 */
+  #committed = $state<DesktopBackground>(DEFAULT_BACKGROUND);
+
+  get isDirty(): boolean {
+    return JSON.stringify(this.background) !== JSON.stringify(this.#committed);
+  }
 
   // 直接读 $state 即响应式（Svelte 5 getter 访问 $state 自动追踪依赖）。
   get isWallpaperActive(): boolean {
@@ -98,8 +112,21 @@ class DesktopServiceImpl implements DesktopService {
   }
 
   setBackground(bg: DesktopBackground): void {
+    this.previewBackground(bg);
+    this.commit();
+  }
+
+  previewBackground(bg: DesktopBackground): void {
     this.background = bg;
+  }
+
+  commit(): void {
+    this.#committed = this.background;
     this.persist();
+  }
+
+  discard(): void {
+    this.background = this.#committed;
   }
 
   async loadSiteDefaults(): Promise<void> {
@@ -112,6 +139,7 @@ class DesktopServiceImpl implements DesktopService {
         this.background = parsed;
       }
       this.restore(); // 本地覆盖重新套用（local > site）
+      this.#committed = this.background;
     } catch {
       // 后端不可达：保持出厂默认
     }
@@ -159,11 +187,15 @@ class DesktopServiceImpl implements DesktopService {
   private restore(): void {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
+      if (!raw) {
+        this.#committed = this.background;
+        return;
+      }
       const parsed = JSON.parse(raw) as unknown;
       if (isValidBackground(parsed)) {
         this.background = parsed;
       }
+      this.#committed = this.background;
     } catch {
       // 损坏数据，忽略
     }

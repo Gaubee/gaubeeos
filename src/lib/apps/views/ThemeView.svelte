@@ -26,6 +26,9 @@
   import InfoIcon from '@lucide/svelte/icons/info'
   import UploadIcon from '@lucide/svelte/icons/upload'
   import ExternalLinkIcon from '@lucide/svelte/icons/external-link'
+  import SaveIcon from '@lucide/svelte/icons/save'
+  import XIcon from '@lucide/svelte/icons/x'
+  import { notifySuccess } from '$lib/apps/builtin/notifications/service.svelte'
 
   // 主题色相（响应式订阅 themeService，双旋钮）
   const hue = $derived(themeService.hue)
@@ -47,14 +50,28 @@
     { name: '黄', hue: 90 },
   ]
 
-  // 色相滑块实时更新（拖动即生效）
+  // 显式保存模型（2026-08-17）：拖动/点击只预览（即时视觉反馈），
+  // 点「保存」才走持久化链路（managerStore PUT → git 后端一次 commit）。
+  const dirty = $derived(themeService.isDirty || desktopService.isDirty)
+
+  function handleSave(): void {
+    themeService.commit()
+    desktopService.commit()
+    notifySuccess('主题已保存')
+  }
+  function handleDiscard(): void {
+    themeService.discard()
+    desktopService.discard()
+  }
+
+  // 色相滑块实时预览（拖动即视觉生效，不持久化）
   function onHueInput(e: Event) {
     const value = Number((e.target as HTMLInputElement).value)
-    themeService.setHue(value)
+    themeService.previewHue(value)
   }
   function onBaseHueInput(e: Event) {
     const value = Number((e.target as HTMLInputElement).value)
-    themeService.setBaseHue(value)
+    themeService.previewBaseHue(value)
   }
 
   // ---- 桌面背景类型切换 ----
@@ -88,18 +105,18 @@
 
   function switchBgType(type: BgType) {
     if (type === 'default') {
-      desktopService.setBackground({ type: 'default' })
+      desktopService.previewBackground({ type: 'default' })
     } else if (type === 'color') {
-      desktopService.setBackground({ type: 'color', hue: colorHue })
+      desktopService.previewBackground({ type: 'color', hue: colorHue })
     } else if (type === 'gradient') {
-      desktopService.setBackground({ type: 'gradient', from: gradientFrom, to: gradientTo })
+      desktopService.previewBackground({ type: 'gradient', from: gradientFrom, to: gradientTo })
     } else if (type === 'image') {
-      desktopService.setBackground({
+      desktopService.previewBackground({
         type: 'image',
         url: imageUrl || 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920',
       })
     } else if (type === 'svg') {
-      desktopService.setBackground({
+      desktopService.previewBackground({
         type: 'svg',
         templateId: SVG_TEMPLATES[0].id,
         hue,
@@ -108,13 +125,13 @@
   }
 
   function commitColor() {
-    desktopService.setBackground({ type: 'color', hue: colorHue })
+    desktopService.previewBackground({ type: 'color', hue: colorHue })
   }
   function commitGradient() {
-    desktopService.setBackground({ type: 'gradient', from: gradientFrom, to: gradientTo })
+    desktopService.previewBackground({ type: 'gradient', from: gradientFrom, to: gradientTo })
   }
   function commitImage() {
-    if (imageUrl) desktopService.setBackground({ type: 'image', url: imageUrl })
+    if (imageUrl) desktopService.previewBackground({ type: 'image', url: imageUrl })
   }
 
   // ---- 本地文件上传（input-file → data URL）----
@@ -139,7 +156,7 @@
     try {
       const dataUrl = await readFileAsDataUrl(file)
       imageUrl = dataUrl
-      desktopService.setBackground({ type: 'image', url: dataUrl })
+      desktopService.previewBackground({ type: 'image', url: dataUrl })
     } catch {
       uploadError = '读取文件失败'
     } finally {
@@ -177,7 +194,7 @@
     }
   }
   function selectSvgTemplate(templateId: string) {
-    desktopService.setBackground({ type: 'svg', templateId, hue })
+    desktopService.previewBackground({ type: 'svg', templateId, hue })
   }
   function handleClearOverride(): void {
     themeService.clearLocalOverride()
@@ -190,10 +207,22 @@
       <h1 class="text-2xl font-semibold">主题</h1>
       <p class="text-muted-foreground mt-1 text-sm">调整主题色相与桌面背景</p>
     </div>
-    <Button variant="outline" size="sm" onclick={() => themeService.reset()}>
-      <RotateCcwIcon class="size-4" />
-      重置色相
-    </Button>
+    <div class="flex items-center gap-2">
+      {#if dirty}
+        <Button variant="ghost" size="sm" onclick={handleDiscard}>
+          <XIcon class="size-4" />
+          放弃更改
+        </Button>
+      {/if}
+      <Button size="sm" onclick={handleSave} disabled={!dirty}>
+        <SaveIcon data-icon="inline-start" />
+        {dirty ? '保存' : '已保存'}
+      </Button>
+      <Button variant="outline" size="sm" onclick={() => themeService.reset()}>
+        <RotateCcwIcon class="size-4" />
+        重置
+      </Button>
+    </div>
   </header>
 
   <!-- 主题色相（双旋钮：primary 品牌色 + base 中性色） -->
@@ -201,7 +230,7 @@
     <Card.Header>
       <Card.Title>主题色</Card.Title>
       <Card.Description>
-        双旋钮独立调整。亮度锁定（保证可访问性），仅旋转色相。
+        双旋钮独立调整，亮度锁定（可访问性保证）。调整实时预览，点右上「保存」生效。
       </Card.Description>
     </Card.Header>
     <Card.Content class="space-y-5">

@@ -54,6 +54,16 @@ export interface ThemeService extends AppService {
   setBaseHue(hue: number): void;
   /** 重置为默认色相（primary + base）。 */
   reset(): void;
+  /** 预览（不持久化）：滑杆拖动等连续交互用，即时注入 DOM。 */
+  previewHue(hue: number): void;
+  /** 预览 base 色相（不持久化）。 */
+  previewBaseHue(hue: number): void;
+  /** 是否有未保存的预览变更。 */
+  readonly isDirty: boolean;
+  /** 提交当前值（一次持久化：manager → 站点层；否则本地层）。 */
+  commit(): void;
+  /** 放弃未保存的预览（回滚到已提交值）。 */
+  discard(): void;
   /** 从站点层（managerStore）装载默认值（boot 调用；本地覆盖仍优先生效）。 */
   loadSiteDefaults(): Promise<void>;
   /** 清除本浏览器的个人覆盖层（回到站点默认）。 */
@@ -77,6 +87,12 @@ class ThemeServiceImpl implements ThemeService {
   hue = $state(DEFAULT_PRIMARY_HUE);
   baseHue = $state(DEFAULT_BASE_HUE);
   hasLocalOverride = $state(false);
+  /** 已提交快照（dirty 判定基准）。 */
+  #committed = $state({ hue: DEFAULT_PRIMARY_HUE, baseHue: DEFAULT_BASE_HUE });
+
+  get isDirty(): boolean {
+    return this.hue !== this.#committed.hue || this.baseHue !== this.#committed.baseHue;
+  }
 
   constructor() {
     if (browser) {
@@ -102,6 +118,7 @@ class ThemeServiceImpl implements ThemeService {
       // 本地覆盖重新套用（local > site）
       this.restore();
       this.notifySw();
+      this.#committed = { hue: this.hue, baseHue: this.baseHue };
     } catch {
       // 后端不可达：保持出厂默认
     }
@@ -114,29 +131,49 @@ class ThemeServiceImpl implements ThemeService {
     void this.loadSiteDefaults();
   }
 
+  /** 即时生效 + 持久化（程序化调用语义保留）。UI 连续交互请用 previewHue + commit。 */
   setHue(hue: number): void {
-    const normalized = normalizeHue(hue);
-    this.hue = normalized;
-    this.applyPrimaryToDom(normalized);
-    this.persist();
-    this.notifySw();
+    this.previewHue(hue);
+    this.commit();
   }
 
   setBaseHue(hue: number): void {
+    this.previewBaseHue(hue);
+    this.commit();
+  }
+
+  previewHue(hue: number): void {
     const normalized = normalizeHue(hue);
-    this.baseHue = normalized;
-    this.applyBaseToDom(normalized);
-    this.persist();
+    this.hue = normalized;
+    this.applyPrimaryToDom(normalized);
     this.notifySw();
   }
 
-  reset(): void {
-    this.hue = DEFAULT_PRIMARY_HUE;
-    this.baseHue = DEFAULT_BASE_HUE;
-    this.applyPrimaryToDom(DEFAULT_PRIMARY_HUE);
-    this.applyBaseToDom(DEFAULT_BASE_HUE);
-    this.persist();
+  previewBaseHue(hue: number): void {
+    const normalized = normalizeHue(hue);
+    this.baseHue = normalized;
+    this.applyBaseToDom(normalized);
     this.notifySw();
+  }
+
+  commit(): void {
+    this.#committed = { hue: this.hue, baseHue: this.baseHue };
+    this.persist();
+  }
+
+  discard(): void {
+    this.hue = this.#committed.hue;
+    this.baseHue = this.#committed.baseHue;
+    this.applyPrimaryToDom(this.hue);
+    this.applyBaseToDom(this.baseHue);
+    this.notifySw();
+  }
+
+  /** 重置是明确的保存意图：预览默认值 + 提交。 */
+  reset(): void {
+    this.previewHue(DEFAULT_PRIMARY_HUE);
+    this.previewBaseHue(DEFAULT_BASE_HUE);
+    this.commit();
   }
 
   /** 注入 --primary-h 到 documentElement（驱动 app.css primary 系计算式）。 */
@@ -208,6 +245,7 @@ class ThemeServiceImpl implements ThemeService {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) {
         this.hasLocalOverride = false;
+        this.#committed = { hue: this.hue, baseHue: this.baseHue };
         return;
       }
       this.hasLocalOverride = true;
@@ -224,6 +262,7 @@ class ThemeServiceImpl implements ThemeService {
         }
         this.notifySw();
       }
+      this.#committed = { hue: this.hue, baseHue: this.baseHue };
     } catch {
       // 损坏数据，忽略
     }
