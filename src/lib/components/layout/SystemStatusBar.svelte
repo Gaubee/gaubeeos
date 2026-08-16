@@ -62,6 +62,19 @@
     }
   }
 
+  /** 菜单项可见性过滤 + 分隔符归一：visible 求值、连续分隔符合并、首尾分隔符裁剪。 */
+  function visibleMenuItems(items: AppMenuItem[]): AppMenuItem[] {
+    const out: AppMenuItem[] = []
+    for (const it of items) {
+      const visible = it.separator || !it.visible || it.visible()
+      if (!visible) continue
+      if (it.separator && (out.length === 0 || out[out.length - 1].separator)) continue
+      out.push(it)
+    }
+    while (out.length && out[out.length - 1].separator) out.pop()
+    return out
+  }
+
   // 最小化 = 显示桌面（保留应用在任务栏）
   function minimize() {
     navController.navigateMain('/')
@@ -82,25 +95,22 @@
         <img src={logoUrl} alt="GaubeeOS" class="size-5 shrink-0 rounded-md" />
       </DropdownMenu.Trigger>
       <DropdownMenu.Content align="start">
-        {#each systemMenus as menu, mi (menu.id)}
-          {#if mi > 0}<DropdownMenu.Separator />{/if}
-          {#if menu.items}
-            {#each menu.items as item (item.id)}
-              {#if item.separator}
-                <DropdownMenu.Separator />
-              {:else}
-                <DropdownMenu.Item
-                  onclick={() => runItem(item)}
-                  disabled={item.disabled}
-                >
-                  {#if item.icon}
-                    {@const Icon = item.icon}
-                    <Icon class="size-4" />
-                  {/if}
-                  <span>{item.title}</span>
-                </DropdownMenu.Item>
+        <!-- 各应用注册的 system 菜单拍平为一列（组间自动分隔线），统一做可见性过滤与分隔符归一 -->
+        {@const items = systemMenus.flatMap((m) => m.items ?? [])}
+        {@const visibleItems = visibleMenuItems(items)}
+        {#each visibleItems as item, ii (item.id)}
+          {#if item.separator}
+            {#if ii > 0 && ii < visibleItems.length - 1}
+              <DropdownMenu.Separator />
+            {/if}
+          {:else}
+            <DropdownMenu.Item onclick={() => runItem(item)} disabled={item.disabled}>
+              {#if item.icon}
+                {@const Icon = item.icon}
+                <Icon class="size-4" />
               {/if}
-            {/each}
+              <span>{item.title}</span>
+            </DropdownMenu.Item>
           {/if}
         {/each}
       </DropdownMenu.Content>

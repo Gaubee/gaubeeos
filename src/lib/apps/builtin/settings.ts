@@ -13,6 +13,7 @@ import PaletteIcon from "@lucide/svelte/icons/palette";
  */
 import PanelBottomIcon from "@lucide/svelte/icons/panel-bottom";
 import Settings from "@lucide/svelte/icons/settings";
+import StoreIcon from "@lucide/svelte/icons/store";
 import { toggleMode } from "mode-watcher";
 import type { Component } from "svelte";
 import { z } from "zod";
@@ -82,7 +83,8 @@ export const settingsApp: AppEntry = {
         render: AboutSection as unknown as Component,
       },
     ],
-    // 系统菜单（苹果菜单，LOGO 触发）：设置入口、主题切换、关于
+    // 系统菜单（苹果菜单，LOGO 触发）：关于置顶 → 系统设置/应用商店/切换主题；
+    // 登录相关由 account 应用注册在末尾（order 100）
     appMenus: [
       {
         id: "settings:main",
@@ -90,10 +92,11 @@ export const settingsApp: AppEntry = {
         placement: "system",
         order: 0,
         items: [
-          { id: "settings-entry", title: "设置…", icon: Settings, link: "/app/settings" },
-          { id: "theme-toggle", title: "切换主题", icon: MoonIcon, onClick: toggleMode },
-          { id: "sep1", title: "-", separator: true },
           { id: "about", title: "关于 GaubeeOS", icon: Info, link: "/app/settings/about" },
+          { id: "sep1", title: "-", separator: true },
+          { id: "settings-entry", title: "系统设置…", icon: Settings, link: "/app/settings" },
+          { id: "app-store", title: "应用商店…", icon: StoreIcon, link: "/app/store" },
+          { id: "theme-toggle", title: "切换主题", icon: MoonIcon, onClick: toggleMode },
         ],
       },
     ],

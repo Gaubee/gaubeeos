@@ -1,4 +1,5 @@
 import AccountView from "$lib/apps/views/AccountView.svelte";
+import { authStore } from "$lib/auth/session.svelte";
 import { leafRoute } from "$lib/router";
 import LogInIcon from "@lucide/svelte/icons/log-in";
 import LogOutIcon from "@lucide/svelte/icons/log-out";
@@ -57,21 +58,30 @@ export const accountApp: AppEntry = {
         id: "account:main",
         title: "账户",
         placement: "system",
-        order: 10,
+        order: 100, // 登录区固定菜单底部
         items: [
-          { id: "account-settings", title: "账户设置…", icon: User, link: "/app/account" },
-          { id: "sep1", title: "-", separator: true },
+          // 分隔线：仅登录后显示（未登录时登录项之上不需要线——settings 组尾已归一）
+          { id: "sep0", title: "-", separator: true, visible: () => authStore.state.authenticated },
+          {
+            id: "account-settings",
+            title: "账户设置…",
+            icon: User,
+            link: "/app/account",
+            visible: () => authStore.state.authenticated,
+          },
           {
             id: "login",
             title: "登录 GitHub",
             icon: LogInIcon,
             onClick: () => accountService.login(),
+            visible: () => !authStore.state.authenticated,
           },
           {
             id: "logout",
             title: "退出登录",
             icon: LogOutIcon,
             onClick: () => void accountService.logout(),
+            visible: () => authStore.state.authenticated,
           },
         ],
       },

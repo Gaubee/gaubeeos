@@ -31,6 +31,8 @@ export interface AppMenuItem {
   separator?: boolean;
   /** 禁用。 */
   disabled?: boolean;
+  /** 动态可见性（如登录态；渲染时求值，false 则隐藏。相邻分隔符自动合并）。 */
+  visible?: () => boolean;
 }
 
 /** 应用菜单声明（由 manifest.appMenus 注册）。 */
